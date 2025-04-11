@@ -235,8 +235,8 @@ function Trail({
   position: [number, number, number];
   velocity: [number, number, number];
 }) {
-  const trailRef = useRef<THREE.Line>(null);
-
+  const trailRef = useRef<THREE.Object3D>(null);
+  
   const points = useMemo(() => {
     const points: THREE.Vector3[] = [];
     for (let i = 0; i < 10; i++) {
@@ -253,33 +253,28 @@ function Trail({
 
   useFrame(() => {
     if (trailRef.current) {
-      const positions = trailRef.current.geometry.attributes.position.array as Float32Array;
+      const lineObject = trailRef.current as unknown as THREE.Line;
+      const positions = lineObject.geometry.attributes.position.array as Float32Array;
       for (let i = 0; i < 10; i++) {
         const i3 = i * 3;
         positions[i3] = position[0] - velocity[0] * i * 0.1;
         positions[i3 + 1] = position[1] - velocity[1] * i * 0.1;
         positions[i3 + 2] = position[2] - velocity[2] * i * 0.1;
       }
-      trailRef.current.geometry.attributes.position.needsUpdate = true;
+      lineObject.geometry.attributes.position.needsUpdate = true;
     }
   });
 
   return (
-    <line href={trailRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[new Float32Array(points.flatMap((p) => [p.x, p.y, p.z])), 3]}
-          count={10}
-        />
-      </bufferGeometry>
-      <lineBasicMaterial
-        color="#ffffff"
-        transparent
-        opacity={0.5}
-        blending={THREE.AdditiveBlending}
-      />
-    </line>
+    <primitive object={new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({
+        color: "#ffffff",
+        transparent: true,
+        opacity: 0.5,
+        blending: THREE.AdditiveBlending
+      })
+    )} ref={trailRef} />
   );
 }
 
