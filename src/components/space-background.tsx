@@ -84,21 +84,18 @@ function EnhancedStars() {
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
+          args={[positions.positions, 3]}
           count={count}
-          array={positions.positions}
-          itemSize={3}
         />
         <bufferAttribute
           attach="attributes-color"
+          args={[positions.colors, 3]}
           count={count}
-          array={positions.colors}
-          itemSize={3}
         />
         <bufferAttribute
           attach="attributes-size"
+          args={[new Float32Array(count).fill(0.5), 1]}
           count={count}
-          array={new Float32Array(count).fill(0.5)}
-          itemSize={1}
         />
       </bufferGeometry>
       <PointMaterial
@@ -145,15 +142,13 @@ function MovingStars() {
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
+          args={[positions, 3]}
           count={count}
-          array={positions}
-          itemSize={3}
         />
         <bufferAttribute
           attach="attributes-size"
+          args={[new Float32Array(count).fill(1), 1]}
           count={count}
-          array={new Float32Array(count).fill(1)}
-          itemSize={1}
         />
       </bufferGeometry>
       <PointMaterial
@@ -173,7 +168,6 @@ function ShootingStars() {
   const count = 15;
   const ref = useRef<THREE.Group>(null);
 
-  // Define the type for shooting star data
   type ShootingStar = {
     position: [number, number, number];
     velocity: [number, number, number];
@@ -271,13 +265,12 @@ function Trail({
   });
 
   return (
-    <line ref={trailRef}>
+    <line href={trailRef}>
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
+          args={[new Float32Array(points.flatMap((p) => [p.x, p.y, p.z])), 3]}
           count={10}
-          array={new Float32Array(points.flatMap((p) => [p.x, p.y, p.z]))}
-          itemSize={3}
         />
       </bufferGeometry>
       <lineBasicMaterial
