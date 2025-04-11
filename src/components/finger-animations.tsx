@@ -72,7 +72,7 @@ function getFingerAngle(fingerIndex: number, isBlackKey: boolean): number {
 // Human finger with glove component
 function HumanFingerWithGlove({ 
   index, 
-  isBlackKey,
+  // isBlackKey,
   isPressed,
   noteIndex
 }: { 

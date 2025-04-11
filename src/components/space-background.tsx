@@ -3,15 +3,20 @@
 import { useRef, useMemo } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Stars, PointMaterial, Sphere } from "@react-three/drei";
+import { PointMaterial } from "@react-three/drei";
 
 export default function SpaceBackground() {
   return (
     <div className="absolute inset-0 z-0">
       <Canvas camera={{ position: [0, 0, 10], fov: 60 }}>
-        <color attach="background" args={["#0a0015"]} /> {/* Deep cosmic purple */}
+        <color attach="background" args={["#0a0015"]} />{" "}
+        {/* Deep cosmic purple */}
         <ambientLight intensity={0.1} />
-        <directionalLight position={[10, 10, 5]} intensity={0.4} color="#ffffff" />
+        <directionalLight
+          position={[10, 10, 5]}
+          intensity={0.4}
+          color="#ffffff"
+        />
         <SpaceScene />
       </Canvas>
     </div>
@@ -42,70 +47,80 @@ function SpaceScene() {
       {/* <Nebula /> */}
       <EnhancedStars />
       <MovingStars />
-      <Planet position={[5, -3, -15]} scale={2.5} rotation={[0.1, 0.2, 0]} color="#ff6b6b" />
-      <Planet position={[-7, 4, -20]} scale={4} rotation={[0.5, 0.2, 0]} color="#8a2be2" />
+      <Planet
+        position={[5, -3, -15]}
+        scale={2.5}
+        rotation={[0.1, 0.2, 0]}
+        color="#ff6b6b"
+      />
+      <Planet
+        position={[-7, 4, -20]}
+        scale={4}
+        rotation={[0.5, 0.2, 0]}
+        color="#8a2be2"
+      />
       <ShootingStars />
     </group>
   );
 }
 
 // Nebula effect with shader
-function Nebula() {
-  const meshRef = useRef<THREE.Mesh>(null);
+// function Nebula() {
+//   const meshRef = useRef<THREE.Mesh>(null);
 
-  const nebulaShader = useMemo(
-    () => ({
-      uniforms: {
-        time: { value: 0 },
-        color1: { value: new THREE.Color("#4b0082") }, // Indigo
-        color2: { value: new THREE.Color("#ff00ff") }, // Magenta
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform float time;
-        uniform vec3 color1;
-        uniform vec3 color2;
-        varying vec2 vUv;
-        float noise(vec2 p) {
-          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-        }
-        void main() {
-          vec2 uv = vUv * 5.0 + time * 0.05;
-          float n1 = noise(uv);
-          float n2 = noise(uv + vec2(1.0, 1.0));
-          float glow = smoothstep(0.2, 0.8, n1 * n2);
-          vec3 color = mix(color1, color2, glow);
-          gl_FragColor = vec4(color, glow * 0.4);
-        }
-      `,
-    }),
-    []
-  );
+//   const nebulaShader = useMemo(
+//     () => ({
+//       uniforms: {
+//         time: { value: 0 },
+//         color1: { value: new THREE.Color("#4b0082") }, // Indigo
+//         color2: { value: new THREE.Color("#ff00ff") }, // Magenta
+//       },
+//       vertexShader: `
+//         varying vec2 vUv;
+//         void main() {
+//           vUv = uv;
+//           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+//         }
+//       `,
+//       fragmentShader: `
+//         uniform float time;
+//         uniform vec3 color1;
+//         uniform vec3 color2;
+//         varying vec2 vUv;
+//         float noise(vec2 p) {
+//           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+//         }
+//         void main() {
+//           vec2 uv = vUv * 5.0 + time * 0.05;
+//           float n1 = noise(uv);
+//           float n2 = noise(uv + vec2(1.0, 1.0));
+//           float glow = smoothstep(0.2, 0.8, n1 * n2);
+//           vec3 color = mix(color1, color2, glow);
+//           gl_FragColor = vec4(color, glow * 0.4);
+//         }
+//       `,
+//     }),
+//     []
+//   );
 
-  useFrame(({ clock }) => {
-    if (meshRef.current) {
-      (meshRef.current.material as THREE.ShaderMaterial).uniforms.time.value = clock.getElapsedTime();
-    }
-  });
+//   useFrame(({ clock }) => {
+//     if (meshRef.current) {
+//       (meshRef.current.material as THREE.ShaderMaterial).uniforms.time.value = clock.getElapsedTime();
+//     }
+//   });
 
-  return (
-    <mesh ref={meshRef} position={[0, 0, -50]} scale={100}>
-      <planeGeometry args={[1, 1]} />
-      <shaderMaterial
-        {...nebulaShader}
-        transparent
-        side={THREE.DoubleSide}
-        depthWrite={false}
-      />
-    </mesh>
-  );
-}
+//   return (
+//     <mesh ref={meshRef} position={[0, 0, -50]} scale={100}>
+//       <planeGeometry args={[1, 1]} />
+//       <shaderMaterial
+//         {...nebulaShader}
+//         transparent
+//         side={THREE.DoubleSide}
+//         depthWrite={false}
+//       />
+//     </mesh>
+//   );
+// }
 
 // Enhanced stars with color and twinkle
 function EnhancedStars() {
@@ -130,7 +145,8 @@ function EnhancedStars() {
   useFrame(({ clock }) => {
     if (pointsRef.current) {
       pointsRef.current.rotation.y += 0.001;
-      const sizes = pointsRef.current.geometry.attributes.size as THREE.BufferAttribute;
+      const sizes = pointsRef.current.geometry.attributes
+        .size as THREE.BufferAttribute;
       for (let i = 0; i < count; i++) {
         sizes.array[i] = 0.5 + Math.sin(clock.getElapsedTime() * 2 + i) * 0.3;
       }
@@ -191,7 +207,8 @@ function MovingStars() {
   useFrame(({ clock }) => {
     if (pointsRef.current) {
       pointsRef.current.rotation.y = clock.getElapsedTime() * 0.02;
-      const sizes = pointsRef.current.geometry.attributes.size as THREE.BufferAttribute;
+      const sizes = pointsRef.current.geometry.attributes
+        .size as THREE.BufferAttribute;
       for (let i = 0; i < count; i++) {
         sizes.array[i] = 1 + Math.sin(clock.getElapsedTime() * 3 + i) * 0.5;
       }
@@ -285,7 +302,13 @@ function ShootingStars() {
 }
 
 // Trail effect for shooting stars
-function Trail({ position, velocity }: { position: [number, number, number]; velocity: number[] }) {
+function Trail({
+  position,
+  velocity,
+}: {
+  position: [number, number, number];
+  velocity: number[];
+}) {
   const trailRef = useRef<THREE.Line>(null);
 
   const points = useMemo(() => {
@@ -304,7 +327,8 @@ function Trail({ position, velocity }: { position: [number, number, number]; vel
 
   useFrame(() => {
     if (trailRef.current) {
-      const positions = trailRef.current.geometry.attributes.position.array as Float32Array;
+      const positions = trailRef.current.geometry.attributes.position
+        .array as Float32Array;
       for (let i = 0; i < 10; i++) {
         const i3 = i * 3;
         positions[i3] = position[0] - velocity[0] * i * 0.1;
