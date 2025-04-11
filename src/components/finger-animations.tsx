@@ -27,14 +27,14 @@ export default function FingerAnimations() {
               animate={{
                 y: isBlackKey ? 25 : 20,
                 opacity: 1,
-                rotate: getFingerAngle(fingerIndex, isBlackKey)
+                rotate: getFingerAngle(fingerIndex, isBlackKey),
               }}
               exit={{ y: -90, opacity: 0, rotate: getFingerAngle(fingerIndex, isBlackKey) }}
-              transition={{ 
-                type: "spring", 
-                stiffness: 300, 
+              transition={{
+                type: "spring",
+                stiffness: 300,
                 damping: isBlackKey ? 22 : 25,
-                mass: fingerIndex === 0 ? 1.2 : 1 // Thumb is slightly heavier
+                mass: fingerIndex === 0 ? 1.2 : 1, // Thumb is slightly heavier
               }}
               className="absolute z-30"
               style={{
@@ -44,9 +44,9 @@ export default function FingerAnimations() {
                 filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.3))",
               }}
             >
-              <HumanFingerWithGlove 
-                index={fingerIndex} 
-                isBlackKey={isBlackKey} 
+              <HumanFingerWithGlove
+                index={fingerIndex}
+                isBlackKey={isBlackKey}
                 isPressed={true}
                 noteIndex={keyIndex}
               />
@@ -60,65 +60,48 @@ export default function FingerAnimations() {
 
 // Function to determine appropriate finger angle
 function getFingerAngle(fingerIndex: number, isBlackKey: boolean): number {
-  // Natural hand curvature makes different fingers approach keys at different angles
   const baseAngles = [15, 8, 0, -8, -15]; // Thumb curves inward, pinky outward
-  
-  // Adjust angles further for black keys
   const angleAdjustment = isBlackKey ? 5 : 0;
-  
   return baseAngles[fingerIndex] + angleAdjustment;
 }
 
 // Human finger with glove component
-function HumanFingerWithGlove({ 
-  index, 
+function HumanFingerWithGlove({
+  index,
   // isBlackKey,
   isPressed,
-  noteIndex
-}: { 
-  index: number; 
+  noteIndex,
+}: {
+  index: number;
   isBlackKey: boolean;
   isPressed: boolean;
   noteIndex: number;
 }) {
-  // Different dimensions based on finger type
   const isThumb = index === 0;
   const fingerWidth = isThumb ? 32 : [28, 30, 28, 24][index - 1];
   const fingerLength = isThumb ? 75 : [90, 95, 90, 80][index - 1];
-  
-  // Get color variations based on note (creates a slight rainbow effect across the keyboard)
+
   const hue = (noteIndex * 8) % 360;
-  
-  // Glove color properties - using a very slight hue variation for visual interest
-  const gloveColor = `hsl(${hue}, 8%, 14%)`; // Dark glove base color
-  const gloveHighlight = `hsl(${hue}, 10%, 22%)`; // Slightly lighter for highlights
-  const gloveShadow = `hsl(${hue}, 12%, 10%)`; // Slightly darker for shadows
-  const gloveAccent = `hsl(${hue}, 25%, 30%)`; // Accent color for seams
-  
-  // Skin tone shown at glove opening (wrist)
+  const gloveColor = `hsl(${hue}, 8%, 14%)`;
+  const gloveHighlight = `hsl(${hue}, 10%, 22%)`;
+  const gloveShadow = `hsl(${hue}, 12%, 10%)`;
+  const gloveAccent = `hsl(${hue}, 25%, 30%)`;
   const skinTone = "#e0c8b0";
-  
-  // Slightly adjust styles based on key press state
   const pressIntensity = isPressed ? 1 : 0.8;
-  
+
   return (
     <div className="flex flex-col items-center">
-      <svg
-        width={fingerWidth}
-        height={fingerLength}
-        viewBox={`0 0 ${fingerWidth} ${fingerLength}`}
-      >
+      <svg width={fingerWidth} height={fingerLength} viewBox={`0 0 ${fingerWidth} ${fingerLength}`}>
         {/* Shadow under the finger */}
-        <ellipse 
-          cx={fingerWidth / 2} 
-          cy={fingerLength - 2} 
-          rx={fingerWidth / 2.5} 
-          ry={3} 
+        <ellipse
+          cx={fingerWidth / 2}
+          cy={fingerLength - 2}
+          rx={fingerWidth / 2.5}
+          ry={3}
           fill="rgba(0,0,0,0.2)"
           filter="blur(1px)"
         />
-        
-        {/* Wrist/arm section (showing skin) */}
+        {/* Wrist/arm section */}
         <path
           d={`
             M${fingerWidth * 0.25} ${fingerLength - 10}
@@ -131,8 +114,7 @@ function HumanFingerWithGlove({
           stroke="#d0b8a0"
           strokeWidth="0.5"
         />
-
-        {/* Main finger shape (glove) */}
+        {/* Main finger shape */}
         <path
           d={`
             M${fingerWidth * 0.3} ${fingerLength * 0.05} 
@@ -147,8 +129,7 @@ function HumanFingerWithGlove({
           stroke="#1a1a1a"
           strokeWidth="0.8"
         />
-        
-        {/* Fingertip detail - slightly compressed when pressing */}
+        {/* Fingertip detail */}
         <path
           d={`
             M${fingerWidth * 0.3} ${fingerLength * (isPressed ? 0.05 : 0.06)}
@@ -158,7 +139,6 @@ function HumanFingerWithGlove({
           fill={gloveHighlight}
           strokeWidth="0.5"
         />
-        
         {/* Finger bend/knuckle details */}
         <path
           d={`
@@ -180,14 +160,12 @@ function HumanFingerWithGlove({
           strokeWidth="0.8"
           opacity="0.6"
         />
-        
-        {/* Glove seam - different for thumb vs fingers */}
+        {/* Glove seam */}
         <path
-          d={isThumb ? 
-            `M${fingerWidth * 0.3} ${fingerLength * 0.2}
-             L${fingerWidth * 0.7} ${fingerLength * 0.2}` :
-            `M${fingerWidth * 0.5} ${fingerLength * 0.1}
-             L${fingerWidth * 0.5} ${fingerLength * 0.7}`
+          d={
+            index === 0
+              ? `M${fingerWidth * 0.3} ${fingerLength * 0.2} L${fingerWidth * 0.7} ${fingerLength * 0.2}`
+              : `M${fingerWidth * 0.5} ${fingerLength * 0.1} L${fingerWidth * 0.5} ${fingerLength * 0.7}`
           }
           fill="none"
           stroke={gloveAccent}
@@ -195,7 +173,6 @@ function HumanFingerWithGlove({
           strokeLinecap="round"
           opacity="0.8"
         />
-        
         {/* Glove texture/highlights */}
         <path
           d={`
@@ -219,8 +196,7 @@ function HumanFingerWithGlove({
           strokeLinecap="round"
           opacity="0.1"
         />
-        
-        {/* Glove wrist detail - elegant piping on the glove */}
+        {/* Glove wrist detail */}
         <path
           d={`
             M${fingerWidth * 0.2} ${fingerLength - 14}
@@ -241,8 +217,7 @@ function HumanFingerWithGlove({
           strokeWidth="0.5"
           opacity={pressIntensity * 0.7}
         />
-        
-        {/* Little glove wrinkles - more pronounced when pressing */}
+        {/* Glove wrinkles */}
         {Array.from({ length: 4 }).map((_, i) => (
           <path
             key={i}
@@ -256,12 +231,11 @@ function HumanFingerWithGlove({
             opacity={isPressed ? 0.7 : 0.4}
           />
         ))}
-        
-        {/* Pressure area where finger touches key - more visible when pressed */}
-        <ellipse 
-          cx={fingerWidth / 2} 
-          cy={fingerLength * 0.04} 
-          rx={fingerWidth * 0.28} 
+        {/* Pressure area */}
+        <ellipse
+          cx={fingerWidth / 2}
+          cy={fingerLength * 0.04}
+          rx={fingerWidth * 0.28}
           ry={fingerLength * 0.04}
           fill={isPressed ? gloveAccent : "none"}
           fillOpacity={isPressed ? 0.2 : 0}
@@ -269,8 +243,7 @@ function HumanFingerWithGlove({
           strokeWidth="0.8"
           opacity={isPressed ? 0.9 : 0.5}
         />
-        
-        {/* Add slight shine to glove material */}
+        {/* Shine */}
         <ellipse
           cx={fingerWidth * 0.4}
           cy={fingerLength * 0.3}
@@ -286,7 +259,8 @@ function HumanFingerWithGlove({
 
 // Helper function to determine which finger to use for a key
 function getFingerForKey(relativeIndex: number, absoluteIndex: number): number {
-  const cMajorFingering = {
+  // Define C Major fingering with an index signature
+  const cMajorFingering: { [key: number]: number } = {
     39: 0, // C4: Thumb
     40: 1, // C#4: Index
     41: 1, // D4: Index
@@ -302,44 +276,45 @@ function getFingerForKey(relativeIndex: number, absoluteIndex: number): number {
     51: 1, // C5: Index
   };
 
-  if (absoluteIndex >= 39 && absoluteIndex <= 51 && cMajorFingering[absoluteIndex] !== undefined) {
+  // Check if the key is in C Major range and has a defined fingering
+  if (
+    absoluteIndex >= 39 &&
+    absoluteIndex <= 51 &&
+    cMajorFingering[absoluteIndex] !== undefined
+  ) {
     return cMajorFingering[absoluteIndex];
   }
 
-  // Improved fingering map for more natural playing
+  // Fallback fingering map for other keys
   const fingerMap = [0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 3, 2];
   return fingerMap[relativeIndex % 12];
 }
 
 // Helper function to calculate key position aligned with PianoKeyboard.tsx
-function getKeyPosition(relativeIndex: number, isBlackKey: boolean, visibleKeys: number, startKey: number) {
-  // Calculate number of white keys visible
-  const whiteKeysCount = visibleKeys - [1, 3, 6, 8, 10].filter((i) => 
-    (startKey + i) % 12 < visibleKeys
-  ).length;
-  
-  let x;
+function getKeyPosition(
+  relativeIndex: number,
+  isBlackKey: boolean,
+  visibleKeys: number,
+  startKey: number
+) {
+  const whiteKeysCount =
+    visibleKeys -
+    [1, 3, 6, 8, 10].filter((i) => (startKey + i) % 12 < visibleKeys).length;
 
+  let x;
   if (isBlackKey) {
-    // Count white keys before this position
     const whiteKeysBefore = Array.from({ length: relativeIndex }, (_, i) => startKey + i).filter(
       (key) => ![1, 3, 6, 8, 10].includes(key % 12)
     ).length;
-    
-    // Position black key finger slightly to the right of the black key center
-    x = (whiteKeysBefore * (100 / whiteKeysCount)) - 3.5;
+    x = whiteKeysBefore * (100 / whiteKeysCount) - 3.5;
   } else {
-    // Count to find position of this white key
-    const whiteKeyIndex = Array.from({ length: relativeIndex + 1 }, (_, i) => startKey + i).filter(
-      (key) => ![1, 3, 6, 8, 10].includes(key % 12)
-    ).length - 1;
-    
-    // Center on white key
-    x = whiteKeyIndex * (100 / whiteKeysCount) + (50 / whiteKeysCount) - 2;
+    const whiteKeyIndex =
+      Array.from({ length: relativeIndex + 1 }, (_, i) => startKey + i).filter(
+        (key) => ![1, 3, 6, 8, 10].includes(key % 12)
+      ).length - 1;
+    x = whiteKeyIndex * (100 / whiteKeysCount) + 50 / whiteKeysCount - 2;
   }
 
-  // Adjust height based on key type - fingers should descend from higher up for black keys
   const y = isBlackKey ? 75 : 55;
-
   return { x, y };
 }
