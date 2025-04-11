@@ -24,3 +24,107 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+text-shadow-enhanced {
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.9), 0 0 2px rgba(255, 255, 255, 1);
+}
+
+.shadow-glow-enhanced {
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.9), 0 0 5px rgba(168, 85, 247, 0.5);
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(-10%) skewX(15deg);
+  }
+
+  100% {
+    transform: translateX(1000%) skewX(15deg);
+  }
+}
+
+@keyframes slide-slow {
+  0% {
+    transform: translateX(-10%) skewX(12deg);
+  }
+
+  100% {
+    transform: translateX(1000%) skewX(12deg);
+  }
+}
+
+@keyframes slide-medium {
+  0% {
+    transform: translateX(1000%) skewX(-12deg);
+  }
+
+  100% {
+    transform: translateX(-10%) skewX(-12deg);
+  }
+}
+
+@keyframes slow-pulse {
+  0% {
+    opacity: 0.1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+
+  100% {
+    opacity: 0.1;
+  }
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-15px) rotate(5deg);
+  }
+
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes float-reverse {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(15px) rotate(-5deg);
+  }
+
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+.animate-slide {
+  animation: slide 8s infinite linear;
+}
+
+.animate-slide-slow {
+  animation: slide-slow 12s infinite linear;
+}
+
+.animate-slide-medium {
+  animation: slide-medium 10s infinite linear;
+}
+
+.animate-slow-pulse {
+  animation: slow-pulse 4s infinite ease-in-out;
+}
+
+.animate-float {
+  animation: float 6s infinite ease-in-out;
+}
+
+.animate-float-reverse {
+  animation: float-reverse 7s infinite ease-in-out;
+}

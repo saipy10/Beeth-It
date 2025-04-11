@@ -4,9 +4,9 @@ import { useEffect } from "react";
 import dynamic from "next/dynamic";
 import { usePianoStore } from "@/store/piano-store";
 import PianoKeyboard from "@/components/piano-keyboard";
-import MiniMap from "@/components/mini-map";
-import FingerAnimations from "@/components/finger-animations";
-import KeySuggestions from "@/components/key-suggestions";
+// import MiniMap from "@/components/mini-map";
+// import FingerAnimations from "@/components/finger-animations";
+// import KeySuggestions from "@/components/key-suggestions";
 // import DemoPlayer from "@/components/demo-player";
 import { motion } from "framer-motion";
 
@@ -61,18 +61,18 @@ export default function Home() {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2, duration: 0.5 }}
           >
-            <MiniMap />
+            {/* <MiniMap /> */}
           </motion.div>
 
           {/* Key Suggestions */}
           <div className="h-16 px-4 mt-12">
-            <KeySuggestions />
+            {/* <KeySuggestions /> */}
           </div>
 
           {/* Piano Keyboard */}
           <div className="flex-1 relative">
             <PianoKeyboard />
-            <FingerAnimations />
+            {/* <FingerAnimations /> */}
             {/* <DemoPlayer /> */}
           </div>
         </div>
