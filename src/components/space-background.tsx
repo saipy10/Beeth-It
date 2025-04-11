@@ -9,14 +9,9 @@ export default function SpaceBackground() {
   return (
     <div className="absolute inset-0 z-0">
       <Canvas camera={{ position: [0, 0, 10], fov: 60 }}>
-        <color attach="background" args={["#0a0015"]} />{" "}
-        {/* Deep cosmic purple */}
+        <color attach="background" args={["#0a0015"]} /> {/* Deep cosmic purple */}
         <ambientLight intensity={0.1} />
-        <directionalLight
-          position={[10, 10, 5]}
-          intensity={0.4}
-          color="#ffffff"
-        />
+        <directionalLight position={[10, 10, 5]} intensity={0.4} color="#ffffff" />
         <SpaceScene />
       </Canvas>
     </div>
@@ -44,83 +39,14 @@ function SpaceScene() {
 
   return (
     <group ref={groupRef}>
-      {/* <Nebula /> */}
       <EnhancedStars />
       <MovingStars />
-      <Planet
-        position={[5, -3, -15]}
-        scale={2.5}
-        rotation={[0.1, 0.2, 0]}
-        color="#ff6b6b"
-      />
-      <Planet
-        position={[-7, 4, -20]}
-        scale={4}
-        rotation={[0.5, 0.2, 0]}
-        color="#8a2be2"
-      />
+      <Planet position={[5, -3, -15]} scale={2.5} rotation={[0.1, 0.2, 0]} color="#ff6b6b" />
+      <Planet position={[-7, 4, -20]} scale={4} rotation={[0.5, 0.2, 0]} color="#8a2be2" />
       <ShootingStars />
     </group>
   );
 }
-
-// Nebula effect with shader
-// function Nebula() {
-//   const meshRef = useRef<THREE.Mesh>(null);
-
-//   const nebulaShader = useMemo(
-//     () => ({
-//       uniforms: {
-//         time: { value: 0 },
-//         color1: { value: new THREE.Color("#4b0082") }, // Indigo
-//         color2: { value: new THREE.Color("#ff00ff") }, // Magenta
-//       },
-//       vertexShader: `
-//         varying vec2 vUv;
-//         void main() {
-//           vUv = uv;
-//           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-//         }
-//       `,
-//       fragmentShader: `
-//         uniform float time;
-//         uniform vec3 color1;
-//         uniform vec3 color2;
-//         varying vec2 vUv;
-//         float noise(vec2 p) {
-//           return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-//         }
-//         void main() {
-//           vec2 uv = vUv * 5.0 + time * 0.05;
-//           float n1 = noise(uv);
-//           float n2 = noise(uv + vec2(1.0, 1.0));
-//           float glow = smoothstep(0.2, 0.8, n1 * n2);
-//           vec3 color = mix(color1, color2, glow);
-//           gl_FragColor = vec4(color, glow * 0.4);
-//         }
-//       `,
-//     }),
-//     []
-//   );
-
-//   useFrame(({ clock }) => {
-//     if (meshRef.current) {
-//       (meshRef.current.material as THREE.ShaderMaterial).uniforms.time.value = clock.getElapsedTime();
-//     }
-//   });
-
-//   return (
-//     <mesh ref={meshRef} position={[0, 0, -50]} scale={100}>
-//       <planeGeometry args={[1, 1]} />
-//       <shaderMaterial
-//         {...nebulaShader}
-//         transparent
-//         side={THREE.DoubleSide}
-//         depthWrite={false}
-//       />
-//     </mesh>
-//   );
-// }
 
 // Enhanced stars with color and twinkle
 function EnhancedStars() {
@@ -145,8 +71,7 @@ function EnhancedStars() {
   useFrame(({ clock }) => {
     if (pointsRef.current) {
       pointsRef.current.rotation.y += 0.001;
-      const sizes = pointsRef.current.geometry.attributes
-        .size as THREE.BufferAttribute;
+      const sizes = pointsRef.current.geometry.attributes.size as THREE.BufferAttribute;
       for (let i = 0; i < count; i++) {
         sizes.array[i] = 0.5 + Math.sin(clock.getElapsedTime() * 2 + i) * 0.3;
       }
@@ -207,8 +132,7 @@ function MovingStars() {
   useFrame(({ clock }) => {
     if (pointsRef.current) {
       pointsRef.current.rotation.y = clock.getElapsedTime() * 0.02;
-      const sizes = pointsRef.current.geometry.attributes
-        .size as THREE.BufferAttribute;
+      const sizes = pointsRef.current.geometry.attributes.size as THREE.BufferAttribute;
       for (let i = 0; i < count; i++) {
         sizes.array[i] = 1 + Math.sin(clock.getElapsedTime() * 3 + i) * 0.5;
       }
@@ -249,7 +173,15 @@ function ShootingStars() {
   const count = 15;
   const ref = useRef<THREE.Group>(null);
 
-  const shootingStars = useMemo(() => {
+  // Define the type for shooting star data
+  type ShootingStar = {
+    position: [number, number, number];
+    velocity: [number, number, number];
+    size: number;
+    timeOffset: number;
+  };
+
+  const shootingStars: ShootingStar[] = useMemo(() => {
     return Array.from({ length: count }).map(() => ({
       position: [(Math.random() - 0.5) * 100, (Math.random() - 0.5) * 100, -50],
       velocity: [(Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, 0.5],
@@ -286,7 +218,7 @@ function ShootingStars() {
   return (
     <group ref={ref}>
       {shootingStars.map((data, i) => (
-        <mesh key={i} position={data.position as any}>
+        <mesh key={i} position={data.position}>
           <sphereGeometry args={[data.size, 16, 16]} />
           <meshBasicMaterial
             color="#ffffff"
@@ -294,7 +226,7 @@ function ShootingStars() {
             opacity={0.8}
             blending={THREE.AdditiveBlending}
           />
-          <Trail position={data.position as any} velocity={data.velocity} />
+          <Trail position={data.position} velocity={data.velocity} />
         </mesh>
       ))}
     </group>
@@ -307,12 +239,12 @@ function Trail({
   velocity,
 }: {
   position: [number, number, number];
-  velocity: number[];
+  velocity: [number, number, number];
 }) {
   const trailRef = useRef<THREE.Line>(null);
 
   const points = useMemo(() => {
-    const points = [];
+    const points: THREE.Vector3[] = [];
     for (let i = 0; i < 10; i++) {
       points.push(
         new THREE.Vector3(
@@ -327,8 +259,7 @@ function Trail({
 
   useFrame(() => {
     if (trailRef.current) {
-      const positions = trailRef.current.geometry.attributes.position
-        .array as Float32Array;
+      const positions = trailRef.current.geometry.attributes.position.array as Float32Array;
       for (let i = 0; i < 10; i++) {
         const i3 = i * 3;
         positions[i3] = position[0] - velocity[0] * i * 0.1;
@@ -391,7 +322,6 @@ function Planet({
           emissiveIntensity={0.3}
         />
       </mesh>
-      {/* Atmospheric glow */}
       <mesh scale={scale * 1.1}>
         <sphereGeometry args={[1, 32, 32]} />
         <meshBasicMaterial
