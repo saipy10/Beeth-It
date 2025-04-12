@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePianoStore, keyToNote } from "@/store/piano-store";
 import { Loader2, Play } from "lucide-react";
@@ -19,24 +19,41 @@ export default function PianoKeyboard() {
 
   const pianoRef = useRef<HTMLDivElement>(null);
   const hasInitialized = useRef(false);
+  const keyboardKeysDown = useRef(new Set<string>());
+  const mouseKeyDown = useRef(new Set<number>());
+  const touchRegistry = useRef(new Map<number, number>());
+  const [glowIntensity, setGlowIntensity] = useState(0);
+  const isMouseDown = useRef(false);
 
-  // Initialize audio on first user interaction
+  // Animate glow intensity
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setGlowIntensity(prev => {
+        const newValue = prev + 0.02;
+        return newValue > 1 ? 0 : newValue;
+      });
+    }, 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Initialize audio
   useEffect(() => {
     const handleFirstInteraction = () => {
       if (!hasInitialized.current) {
-        console.log("Triggering initAudio from user click");
         initAudio();
         hasInitialized.current = true;
       }
     };
 
-    const pianoElement = pianoRef.current;
-    if (pianoElement) {
-      pianoElement.addEventListener("click", handleFirstInteraction, { once: true });
+    const piano = pianoRef.current;
+    if (piano) {
+      piano.addEventListener("click", handleFirstInteraction, { once: true });
+      piano.addEventListener("touchstart", handleFirstInteraction, { once: true });
     }
     return () => {
-      if (pianoElement) {
-        pianoElement.removeEventListener("click", handleFirstInteraction);
+      if (piano) {
+        piano.removeEventListener("click", handleFirstInteraction);
+        piano.removeEventListener("touchstart", handleFirstInteraction);
       }
     };
   }, [initAudio]);
@@ -44,424 +61,390 @@ export default function PianoKeyboard() {
   // Handle keyboard input
   useEffect(() => {
     const keyMap: Record<string, number> = {
-      a: 0, // C
-      w: 1, // C#
-      s: 2, // D
-      e: 3, // D#
-      d: 4, // E
-      f: 5, // F
-      t: 6, // F#
-      g: 7, // G
-      y: 8, // G#
-      h: 9, // A
-      u: 10, // A#
-      j: 11, // B
-      k: 12, // High C
+      a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11,
+      k: 12, l: 13, o: 14, p: 15, z: 16, x: 17, c: 18, v: 19,
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!pianoRef.current?.contains(document.activeElement)) return;
+      if (!pianoRef.current?.contains(document.activeElement) && document.activeElement !== document.body) return;
       const key = e.key.toLowerCase();
-      if (keyMap[key] !== undefined && !e.repeat) {
-        const noteIndex = startKey + keyMap[key];
-        if (noteIndex >= 0 && noteIndex < 88) pressKey(noteIndex);
+      if (keyboardKeysDown.current.has(key) || keyMap[key] === undefined) return;
+      e.preventDefault();
+      keyboardKeysDown.current.add(key);
+      const noteIndex = startKey + keyMap[key];
+      if (noteIndex >= 0 && noteIndex < 88) {
+        requestAnimationFrame(() => pressKey(noteIndex));
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (!pianoRef.current?.contains(document.activeElement)) return;
       const key = e.key.toLowerCase();
-      if (keyMap[key] !== undefined) {
-        const noteIndex = startKey + keyMap[key];
-        if (noteIndex >= 0 && noteIndex < 88) releaseKey(noteIndex);
+      if (keyMap[key] === undefined) return;
+      e.preventDefault();
+      keyboardKeysDown.current.delete(key);
+      const noteIndex = startKey + keyMap[key];
+      if (noteIndex >= 0 && noteIndex < 88) {
+        requestAnimationFrame(() => releaseKey(noteIndex));
       }
     };
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
+    const cleanupKeys = () => {
+      keyboardKeysDown.current.forEach((key) => {
+        if (keyMap[key] !== undefined) {
+          const noteIndex = startKey + keyMap[key];
+          if (noteIndex >= 0 && noteIndex < 88) releaseKey(noteIndex);
+        }
+      });
+      keyboardKeysDown.current.clear();
+    };
+
+    window.addEventListener("keydown", handleKeyDown, { passive: false });
+    window.addEventListener("keyup", handleKeyUp, { passive: false });
+    window.addEventListener("blur", cleanupKeys);
 
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", cleanupKeys);
+      cleanupKeys();
     };
   }, [startKey, pressKey, releaseKey]);
 
-  // Handle global mouseup
+  // Enhanced mouse event handling
   useEffect(() => {
-    const handleMouseUp = () => {
-      activeKeys.forEach((key) => releaseKey(key));
+    const getKeyIndex = (x: number, y: number) => {
+      const element = document.elementFromPoint(x, y) as HTMLElement;
+      return element?.dataset.keyIndex ? parseInt(element.dataset.keyIndex) : null;
     };
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => window.removeEventListener("mouseup", handleMouseUp);
-  }, [activeKeys, releaseKey]);
 
-  // Generate visible keys
+    const handleMouseDown = (e: MouseEvent) => {
+      isMouseDown.current = true;
+      const keyIndex = getKeyIndex(e.clientX, e.clientY);
+      if (keyIndex !== null && !mouseKeyDown.current.has(keyIndex)) {
+        mouseKeyDown.current.add(keyIndex);
+        requestAnimationFrame(() => pressKey(keyIndex));
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isMouseDown.current) {
+        const keyIndex = getKeyIndex(e.clientX, e.clientY);
+        
+        // Release keys that are no longer under the mouse
+        mouseKeyDown.current.forEach(activeKeyIndex => {
+          if (keyIndex !== activeKeyIndex) {
+            requestAnimationFrame(() => releaseKey(activeKeyIndex));
+            mouseKeyDown.current.delete(activeKeyIndex);
+          }
+        });
+        
+        // Press the key under the mouse if it's not already pressed
+        if (keyIndex !== null && !mouseKeyDown.current.has(keyIndex)) {
+          mouseKeyDown.current.add(keyIndex);
+          requestAnimationFrame(() => pressKey(keyIndex));
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isMouseDown.current) {
+        mouseKeyDown.current.forEach((keyIndex) => {
+          requestAnimationFrame(() => releaseKey(keyIndex));
+        });
+        mouseKeyDown.current.clear();
+        isMouseDown.current = false;
+      }
+    };
+
+    // Handle touch events
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      for (const touch of e.changedTouches) {
+        const keyIndex = getKeyIndex(touch.clientX, touch.clientY);
+        if (keyIndex !== null) {
+          touchRegistry.current.set(touch.identifier, keyIndex);
+          requestAnimationFrame(() => pressKey(keyIndex));
+        }
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      for (const touch of e.changedTouches) {
+        const newKeyIndex = getKeyIndex(touch.clientX, touch.clientY);
+        const oldKeyIndex = touchRegistry.current.get(touch.identifier);
+        if (oldKeyIndex !== undefined && newKeyIndex !== null && oldKeyIndex !== newKeyIndex) {
+          requestAnimationFrame(() => releaseKey(oldKeyIndex));
+          touchRegistry.current.set(touch.identifier, newKeyIndex);
+          requestAnimationFrame(() => pressKey(newKeyIndex));
+        }
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      for (const touch of e.changedTouches) {
+        const keyIndex = touchRegistry.current.get(touch.identifier);
+        if (keyIndex !== undefined) {
+          touchRegistry.current.delete(touch.identifier);
+          requestAnimationFrame(() => releaseKey(keyIndex));
+        }
+      }
+    };
+
+    // Add event listeners
+    const piano = pianoRef.current;
+    if (piano) {
+      piano.style.touchAction = "none";
+      
+      // Piano element event listeners
+      piano.addEventListener("mousedown", handleMouseDown, { passive: false });
+      piano.addEventListener("mousemove", handleMouseMove, { passive: false });
+      
+      // Touch events
+      piano.addEventListener("touchstart", handleTouchStart, { passive: false });
+      piano.addEventListener("touchmove", handleTouchMove, { passive: false });
+      piano.addEventListener("touchend", handleTouchEnd, { passive: false });
+      piano.addEventListener("touchcancel", handleTouchEnd, { passive: false });
+    }
+    
+    // Global mouse event listeners to handle cases where mouse is released outside piano
+    window.addEventListener("mousemove", handleMouseMove, { passive: false });
+    window.addEventListener("mouseup", handleMouseUp, { passive: false });
+    window.addEventListener("mouseleave", handleMouseUp, { passive: false });
+
+    return () => {
+      if (piano) {
+        piano.style.touchAction = "";
+        piano.removeEventListener("mousedown", handleMouseDown);
+        piano.removeEventListener("mousemove", handleMouseMove);
+        
+        piano.removeEventListener("touchstart", handleTouchStart);
+        piano.removeEventListener("touchmove", handleTouchMove);
+        piano.removeEventListener("touchend", handleTouchEnd);
+        piano.removeEventListener("touchcancel", handleTouchEnd);
+      }
+      
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mouseleave", handleMouseUp);
+      
+      // Clean up any pressed keys
+      const currentMouseKeys = mouseKeyDown.current;
+      currentMouseKeys.forEach(keyIndex => {
+        releaseKey(keyIndex);
+      });
+      currentMouseKeys.clear();
+      isMouseDown.current = false;
+    };
+  }, [pressKey, releaseKey]);
+
+  // Generate keys
   const keys = useMemo(
     () =>
       Array.from({ length: visibleKeys }, (_, i) => {
         const keyIndex = startKey + i;
         const isBlackKey = [1, 3, 6, 8, 10].includes(keyIndex % 12);
-        const isActive = activeKeys.has(keyIndex);
-        const isSuggested = suggestedKeys.includes(keyIndex);
-        return { keyIndex, isBlackKey, isActive, isSuggested };
+        return {
+          keyIndex,
+          isBlackKey,
+          isActive: activeKeys.has(keyIndex),
+          isSuggested: suggestedKeys.includes(keyIndex),
+          noteColor: getNoteColor(keyIndex % 12),
+        };
       }),
     [startKey, visibleKeys, activeKeys, suggestedKeys]
   );
 
-  // Nebula theme styles
-  const nebulaStyles = {
-    container: "bg-transparent",
-    body: "bg-indigo-950/5 backdrop-blur-[28px] border border-purple-500/10 rounded-xl shadow-[0_20px_80px_rgba(168,85,247,0.2),inset_0_0_60px_rgba(147,112,219,0.15)]",
-    bodyStyle: {
-      transform: "perspective(1200px) rotateX(3deg)",
-    },
-    reflections: (
-      <>
-        <div className="absolute -inset-[100%] bg-gradient-to-br from-purple-500/15 via-blue-500/10 to-transparent rotate-45 animate-slow-pulse" />
-        <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-r from-purple-600/20 via-cyan-500/20 to-pink-600/20 opacity-80 blur-lg" />
-        <div className="absolute top-0 -left-[100%] w-full h-full bg-gradient-to-r from-transparent via-purple-400/15 to-transparent skew-x-[15deg] animate-slide-slow" />
-      </>
-    ),
-    prisms: (
-      <>
-        <div className="absolute -top-40 -left-40 w-80 h-80 bg-gradient-to-br from-purple-600/15 via-blue-600/15 to-pink-600/15 rounded-full blur-3xl animate-float" />
-        <div className="absolute -bottom-40 -right-40 w-80 h-80 bg-gradient-to-br from-cyan-600/15 via-indigo-600/15 to-purple-600/15 rounded-full blur-3xl animate-float-reverse" />
-        <div className="absolute top-1/2 left-1/4 w-60 h-60 bg-gradient-to-br from-pink-500/10 via-purple-500/10 to-blue-500/10 rounded-full blur-2xl animate-slow-pulse" />
-        {/* Starfield effect */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute w-1 h-1 bg-white/30 rounded-full animate-star-1" style={{ top: "10%", left: "15%" }} />
-          <div className="absolute w-1 h-1 bg-white/20 rounded-full animate-star-2" style={{ top: "30%", left: "25%" }} />
-          <div className="absolute w-1 h-1 bg-white/25 rounded-full animate-star-3" style={{ top: "50%", left: "40%" }} />
-          <div className="absolute w-1 h-1 bg-white/15 rounded-full animate-star-4" style={{ top: "70%", left: "60%" }} />
-          <div className="absolute w-1 h-1 bg-white/20 rounded-full animate-star-5" style={{ top: "20%", left: "80%" }} />
-          <div className="absolute w-2 h-2 bg-white/25 rounded-full animate-star-6" style={{ top: "40%", left: "10%" }} />
-          <div className="absolute w-1 h-1 bg-white/15 rounded-full animate-star-7" style={{ top: "60%", left: "30%" }} />
-          <div className="absolute w-1 h-1 bg-white/20 rounded-full animate-star-8" style={{ top: "80%", left: "50%" }} />
-        </div>
-      </>
-    ),
-    lid: "bg-indigo-950/10 backdrop-blur-[28px] border-b border-purple-500/20",
-    lidStyle: {
-      transform: "perspective(1200px) rotateX(6deg)",
-      transformOrigin: "bottom",
-    },
-    keyboardBase: "bg-indigo-950/10 backdrop-blur-2xl shadow-[inset_0_-10px_20px_rgba(0,0,0,0.2)]",
-    whiteKey: (isActive: boolean, isSuggested: boolean) =>
-      isActive
-        ? "bg-gradient-to-b from-cyan-400/40 to-blue-600/30 shadow-[inset_0_-4px_8px_rgba(0,0,0,0.3),0_4px_12px_rgba(100,200,255,0.5)]"
-        : isSuggested
-        ? "bg-gradient-to-b from-purple-500/25 to-indigo-600/20 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.2),0_2px_8px_rgba(168,85,247,0.3)]"
-        : "bg-gradient-to-b from-blue-800/20 to-indigo-900/15 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.2),0_2px_8px_rgba(255,255,255,0.1)]",
-    blackKey: (isActive: boolean, isSuggested: boolean) =>
-      isActive
-        ? "bg-gradient-to-b from-blue-900/50 to-black/40 shadow-[inset_0_-4px_8px_rgba(0,0,0,0.4),0_4px_12px_rgba(100,150,255,0.4)]"
-        : isSuggested
-        ? "bg-gradient-to-b from-purple-600/40 to-indigo-900/35 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.3),0_2px_8px_rgba(168,85,247,0.3)]"
-        : "bg-gradient-to-b from-indigo-900/30 to-black/20 shadow-[inset_0_-2px_4px_rgba(0,0,0,0.3),0_2px_8px_rgba(255,255,255,0.1)]",
-  };
+  // Generate note color based on position in octave
+  function getNoteColor(notePosition: number) {
+    const colors = [
+      'from-purple-500/40 to-indigo-600/30', // C
+      'from-indigo-600/40 to-blue-600/30',   // C#
+      'from-blue-500/40 to-cyan-500/30',     // D
+      'from-cyan-500/40 to-teal-500/30',     // D#
+      'from-teal-500/40 to-green-500/30',    // E
+      'from-green-500/40 to-lime-500/30',    // F
+      'from-lime-500/40 to-yellow-500/30',   // F#
+      'from-yellow-500/40 to-amber-500/30',  // G
+      'from-amber-500/40 to-orange-500/30',  // G#
+      'from-orange-500/40 to-red-500/30',    // A
+      'from-red-500/40 to-pink-500/30',      // A#
+      'from-pink-500/40 to-purple-500/30',   // B
+    ];
+    return colors[notePosition];
+  }
+
+  // Get key glow color
+  function getGlowColor(notePosition: number, isActive: boolean) {
+    if (!isActive) return 'rgba(0, 0, 0, 0)';
+    
+    const colors = [
+      'rgba(168, 85, 247, 0.8)',  // C - purple
+      'rgba(79, 70, 229, 0.8)',   // C# - indigo
+      'rgba(59, 130, 246, 0.8)',  // D - blue
+      'rgba(6, 182, 212, 0.8)',   // D# - cyan
+      'rgba(20, 184, 166, 0.8)',  // E - teal
+      'rgba(22, 163, 74, 0.8)',   // F - green
+      'rgba(132, 204, 22, 0.8)',  // F# - lime
+      'rgba(234, 179, 8, 0.8)',   // G - yellow
+      'rgba(245, 158, 11, 0.8)',  // G# - amber
+      'rgba(249, 115, 22, 0.8)',  // A - orange
+      'rgba(239, 68, 68, 0.8)',   // A# - red
+      'rgba(236, 72, 153, 0.8)',  // B - pink
+    ];
+    return colors[notePosition % 12];
+  }
 
   return (
-    <div className={`h-full w-full flex items-end justify-center p-4 ${nebulaStyles.container}`}>
+    <div className="h-full w-full flex items-end justify-center p-4 bg-gradient-to-b from-black/5 to-black/20">
       <div
         ref={pianoRef}
         tabIndex={0}
-        className="relative h-[80%] w-full max-w-7xl backdrop-blur-lg bg-transparent rounded-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-400/30 shadow-2xl"
+        className="relative h-[80%] w-full max-w-6xl focus:outline-none"
+        style={{ 
+          perspective: "1200px",
+          filter: `drop-shadow(0 0 8px rgba(0, 0, 0, 0.2))`,
+        }}
       >
-        {/* Piano body */}
-        <div
-          className={`absolute inset-0 ${nebulaStyles.body}`}
-          style={nebulaStyles.bodyStyle}
-        >
-          {/* Beveled edges for realism */}
-          <div className="absolute inset-0 border-2 border-transparent border-t-white/20 border-b-white/10 rounded-xl" />
-        </div>
+        {/* Ambient background glow */}
+        <div 
+          className="absolute inset-0 -z-10 rounded-lg opacity-30"
+          style={{ 
+            background: `radial-gradient(circle at ${50 + Math.sin(glowIntensity * Math.PI * 2) * 15}% ${50 + Math.cos(glowIntensity * Math.PI * 2) * 15}%, rgba(120, 120, 255, 0.3), transparent 70%)`,
+            filter: 'blur(40px)',
+          }}
+        />
 
-        {/* Reflections */}
-        <div className="absolute inset-0 overflow-hidden rounded-xl">
-          {nebulaStyles.reflections}
-        </div>
-
-        {/* Prism and starfield effects */}
-        {nebulaStyles.prisms}
-
-        {/* Piano lid */}
-        <div
-          className={`absolute top-0 left-0 right-0 h-16 ${nebulaStyles.lid}`}
-          style={nebulaStyles.lidStyle}
-        >
-          <div className="absolute inset-0 opacity-30 bg-gradient-to-b from-white/15 to-transparent" />
-          <div className="absolute top-0 left-0 right-0 h-px bg-white/40" />
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-white/10" />
-          <div className="absolute bottom-2 left-8 right-8 h-1 bg-white/5 rounded-full blur-sm shadow-[0_-2px_4px_rgba(0,0,0,0.2)]" />
-        </div>
-
-        {/* Loading overlay */}
         <AnimatePresence>
           {!hasInitialized.current || isLoading ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50"
+              className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-md z-50 rounded-xl"
             >
-              <div className="flex flex-col items-center text-center">
+              <div className="flex flex-col items-center">
                 {!hasInitialized.current ? (
                   <>
-                    <Play className="w-10 h-10 text-white mb-2" />
-                    <p className="text-white">Click to start the piano</p>
+                    <Play className="w-8 h-8 text-white mb-2" />
+                    <p className="text-white text-sm">Click to start</p>
                   </>
                 ) : (
-                  isLoading && (
-                    <>
-                      <Loader2 className="w-10 h-10 text-white animate-spin mb-2" />
-                      <p className="text-white">Loading piano samples...</p>
-                    </>
-                  )
+                  <>
+                    <Loader2 className="w-8 h-8 text-white animate-spin mb-2" />
+                    <p className="text-white text-sm">Loading...</p>
+                  </>
                 )}
               </div>
             </motion.div>
           ) : null}
         </AnimatePresence>
 
-        {/* Keyboard base */}
-        <div className={`absolute top-16 left-0 right-0 bottom-0 ${nebulaStyles.keyboardBase}`}>
-          <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-black/5" />
-          <div className="absolute bottom-0 left-4 right-4 h-8 bg-black/8 blur-md shadow-[0_-4px_8px_rgba(0,0,0,0.2)]" />
-        </div>
-
         {/* White keys */}
-        <div className="relative flex h-full w-full pt-16">
+        <div className="relative flex h-full w-full">
           {keys
             .filter((key) => !key.isBlackKey)
-            .map(({ keyIndex, isActive, isSuggested }) => (
-              <motion.div
-                key={`white-${keyIndex}`}
-                className={`
-                  relative flex-1 rounded-b-lg border-l border-r border-b border-white/10
-                  ${nebulaStyles.whiteKey(isActive, isSuggested)}
-                  cursor-pointer overflow-hidden backdrop-blur-[10px] z-10
-                `}
-                style={{
-                  transform: `perspective(2000px) rotateX(${isActive ? 12 : 8}deg)`,
-                  transformOrigin: "top",
-                }}
-                initial={false}
-                animate={{
-                  y: isActive ? 8 : 0,
-                  z: isActive ? -15 : 0,
-                  rotateX: isActive ? 12 : 8,
-                }}
-                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                onMouseDown={() => pressKey(keyIndex)}
-                onMouseUp={() => releaseKey(keyIndex)}
-                onMouseLeave={() => activeKeys.has(keyIndex) && releaseKey(keyIndex)}
-              >
-                {/* Surface texture */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.1),transparent_50%)] opacity-50" />
-                {/* Top bevel */}
-                <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-b from-white/30 to-transparent" />
-                {/* Side bevels */}
-                <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-r from-white/20 to-transparent" />
-                <div className="absolute inset-y-0 right-0 w-1 bg-gradient-to-l from-white/20 to-transparent" />
-                {/* Bottom reflection */}
-                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white/15 to-transparent rounded-b-lg" />
-                {/* Key label */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/90 font-medium shadow-[0_0_8px_rgba(255,255,255,0.9),0_0_2px_rgba(255,255,255,1)]">
-                  {keyToNote(keyIndex)}
-                </div>
-                {/* Keyboard shortcut */}
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] text-white/80 font-mono">
-                  {getKeyboardShortcut(keyIndex - startKey)}
-                </div>
-                {/* Active effects */}
-                <AnimatePresence>
-                  {isActive && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.8 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-cyan-400/35 rounded-b-lg blur-md -z-10"
-                      />
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.6 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-blue-500/25 rounded-b-lg blur-xl -z-10"
-                      />
-                      <motion.div
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1.4, opacity: 0.6 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
-                        transition={{ duration: 0.4 }}
-                        className="absolute inset-0 bg-purple-400/20 rounded-b-lg blur-xl -z-10"
-                      />
-                      <motion.div
-                        initial={{ scale: 0.95, opacity: 0 }}
-                        animate={{
-                          scale: [0.95, 1.1, 0.95],
-                          opacity: [0, 0.4, 0],
-                        }}
-                        transition={{ repeat: Infinity, duration: 1.5 }}
-                        className="absolute inset-0 bg-cyan-500/15 rounded-b-lg blur-lg -z-10"
-                      />
-                    </>
-                  )}
-                </AnimatePresence>
-                {/* Suggested effects */}
-                <AnimatePresence>
-                  {isSuggested && !isActive && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{
-                          opacity: [0.6, 1, 0.6],
-                          transition: { repeat: Infinity, duration: 2 },
-                        }}
-                        exit={{ opacity: 0 }}
-                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/2 h-1 bg-purple-400/90 rounded-t-full shadow-[0_0_10px_rgba(168,85,247,0.9),0_0_5px_rgba(168,85,247,0.5)]"
-                      />
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{
-                          opacity: [0.3, 0.6, 0.3],
-                          transition: { repeat: Infinity, duration: 2, delay: 0.5 },
-                        }}
-                        exit={{ opacity: 0 }}
-                        className="absolute bottom-4 left-1/2 -translate-x-1/2 w-6 h-6 bg-purple-400/30 rounded-full blur-xl"
-                      />
-                    </>
-                  )}
-                </AnimatePresence>
-                {/* Pressed key bottom edge */}
-                {isActive && (
-                  <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-black/30 to-transparent rounded-b-lg shadow-[0_-2px_4px_rgba(0,0,0,0.3)]" />
-                )}
-              </motion.div>
-            ))}
+            .map(({ keyIndex, isActive, isSuggested, noteColor }) => {
+              const notePos = keyIndex % 12;
+              return (
+                <motion.div
+                  key={`white-${keyIndex}`}
+                  data-key-index={keyIndex}
+                  className={`relative flex-1 rounded-lg cursor-pointer z-10 pointer-events-auto overflow-hidden backdrop-blur-sm border border-white/20`}
+                  style={{ 
+                    background: isActive 
+                      ? `linear-gradient(to bottom, ${getGlowColor(notePos, true)} 0%, rgba(255, 255, 255, 0.15) 100%)` 
+                      : `linear-gradient(to bottom, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%)`,
+                    boxShadow: isActive 
+                      ? `0 0 20px ${getGlowColor(notePos, true)}, inset 0 0 10px rgba(255, 255, 255, 0.5)` 
+                      : isSuggested
+                        ? '0 0 10px rgba(120, 120, 255, 0.4), inset 0 0 5px rgba(120, 120, 255, 0.2)'
+                        : 'none'
+                  }}
+                  animate={{ 
+                    y: isActive ? 4 : 0,
+                    transition: { type: "spring", stiffness: 400, damping: 25 }
+                  }}
+                >
+                  {/* Subtle color gradient overlay */}
+                  <div className={`absolute inset-0 bg-gradient-to-b ${noteColor} opacity-${isActive ? 80 : 40}`} />
+                  
+                  {/* Glass reflection effect */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-transparent" />
+                  
+                  {/* Edge highlight */}
+                  <div className="absolute inset-x-0 top-0 h-px bg-white/50" />
+                  
+                  {/* Key label */}
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white font-medium text-shadow">
+                    {keyToNote(keyIndex)}
+                  </div>
+                  
+                  {/* Keyboard shortcut */}
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/90 text-shadow">
+                    {getKeyboardShortcut(keyIndex - startKey)}
+                  </div>
+                </motion.div>
+              );
+            })}
         </div>
 
         {/* Black keys */}
-        <div className="absolute top-16 left-0 right-0 h-[65%]">
-          {keys.map(({ keyIndex, isBlackKey, isActive, isSuggested }) => {
+        <div className="absolute top-0 left-0 right-0 h-[60%]">
+          {keys.map(({ keyIndex, isBlackKey, isActive, isSuggested, noteColor }) => {
             if (!isBlackKey) return null;
-
-            const whiteKeysBefore = keys.filter(
-              (k) => !k.isBlackKey && k.keyIndex < keyIndex
-            ).length;
-
+            const whiteKeysBefore = keys.filter((k) => !k.isBlackKey && k.keyIndex < keyIndex).length;
+            const notePos = keyIndex % 12;
+            
             return (
               <motion.div
                 key={`black-${keyIndex}`}
-                className={`
-                  absolute w-[8%] h-full rounded-b-lg
-                  ${nebulaStyles.blackKey(isActive, isSuggested)}
-                  cursor-pointer overflow-hidden backdrop-blur-[12px] z-20
-                `}
+                data-key-index={keyIndex}
+                className="absolute w-[8.5%] h-full rounded-lg cursor-pointer z-20 pointer-events-auto overflow-hidden backdrop-blur-md border border-black/50"
                 style={{
-                  left: `calc(${whiteKeysBefore * (100 / (keys.length - keys.filter((k) => k.isBlackKey).length))}% - 4%)`,
-                  transform: `perspective(2000px) rotateX(${isActive ? 15 : 10}deg)`,
-                  transformOrigin: "top",
+                  left: `calc(${whiteKeysBefore * (100 / (keys.length - keys.filter((k) => k.isBlackKey).length))}% - 4.25%)`,
+                  background: isActive 
+                    ? `linear-gradient(to bottom, ${getGlowColor(notePos, true)} 0%, rgba(0, 0, 0, 0.8) 100%)` 
+                    : 'linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.8) 100%)',
+                  boxShadow: isActive 
+                    ? `0 0 20px ${getGlowColor(notePos, true)}, inset 0 0 10px rgba(255, 255, 255, 0.3)` 
+                    : isSuggested
+                      ? '0 0 10px rgba(120, 120, 255, 0.4), inset 0 0 5px rgba(120, 120, 255, 0.2)'
+                      : '0 4px 6px rgba(0, 0, 0, 0.3)'
                 }}
-                initial={false}
-                animate={{
-                  y: isActive ? 6 : 0,
-                  z: isActive ? -12 : 0,
-                  rotateX: isActive ? 15 : 10,
+                animate={{ 
+                  y: isActive ? 4 : 0,
+                  transition: { type: "spring", stiffness: 400, damping: 25 }
                 }}
-                transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                onMouseDown={() => pressKey(keyIndex)}
-                onMouseUp={() => releaseKey(keyIndex)}
-                onMouseLeave={() => activeKeys.has(keyIndex) && releaseKey(keyIndex)}
               >
-                {/* Surface texture */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.15),transparent_50%)] opacity-220px opacity-60" />
-                {/* Top bevel */}
-                <div className="absolute inset-x-0 top-0 h-2 bg-gradient-to-b from-white/25 to-transparent" />
-                {/* Side bevels */}
-                <div className="absolute inset-y-0 left-0 w-1 bg-gradient-to-r from-white/20 to-transparent" />
-                <div className="absolute inset-y-0 right-0 w-1 bg-gradient-to-l from-white/20 to-transparent" />
-                {/* Bottom reflection */}
-                <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/25 to-transparent rounded-b-lg" />
+                {/* Subtle color gradient overlay */}
+                <div className={`absolute inset-0 bg-gradient-to-b ${noteColor} opacity-${isActive ? 60 : 30} mix-blend-overlay`} />
+                
+                {/* Glass reflection effect */}
+                <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent opacity-30" />
+                
+                {/* Edge highlight */}
+                <div className="absolute inset-x-0 top-0 h-px bg-white/20" />
+                
                 {/* Keyboard shortcut */}
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] text-gray-300/90 font-mono">
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/80 text-shadow">
                   {getKeyboardShortcut(keyIndex - startKey)}
                 </div>
-                {/* Active effects */}
-                <AnimatePresence>
-                  {isActive && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.7 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-blue-700/30 rounded-b-lg blur-md -z-10"
-                      />
-                      <motion.div
-                        initial={{ scale: 0.8, opacity: 0 }}
-                        animate={{ scale: 1.3, opacity: 0.4 }}
-                        exit={{ scale: 0.8, opacity: 0 }}
-                        transition={{ duration: 0.4 }}
-                        className="absolute inset-0 bg-purple-600/20 rounded-b-lg blur-xl -z-10"
-                      />
-                      <motion.div
-                        initial={{ scale: 0.95, opacity: 0 }}
-                        animate={{
-                          scale: [0.95, 1.1, 0.95],
-                          opacity: [0, 0.3, 0],
-                        }}
-                        transition={{ repeat: Infinity, duration: 1.5 }}
-                        className="absolute inset-0 bg-cyan-600/10 rounded-b-lg blur-lg -z-10"
-                      />
-                    </>
-                  )}
-                </AnimatePresence>
-                {/* Suggested effects */}
-                <AnimatePresence>
-                  {isSuggested && !isActive && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{
-                          opacity: [0.6, 1, 0.6],
-                          transition: { repeat: Infinity, duration: 2 },
-                        }}
-                        exit={{ opacity: 0 }}
-                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1/3 h-1 bg-purple-400/90 rounded-t-full shadow-[0_0_10px_rgba(168,85,247,0.9),0_0_5px_rgba(168,85,247,0.5)]"
-                      />
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{
-                          opacity: [0.2, 0.5, 0.2],
-                          transition: { repeat: Infinity, duration: 2, delay: 0.5 },
-                        }}
-                        exit={{ opacity: 0 }}
-                        className="absolute bottom-4 left-1/2 -translate-x-1/2 w-4 h-4 bg-purple-500/30 rounded-full blur-xl"
-                      />
-                    </>
-                  )}
-                </AnimatePresence>
-                {/* Pressed key bottom edge */}
-                {isActive && (
-                  <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-black/40 to-transparent rounded-b-lg shadow-[0_-2px_4px_rgba(0,0,0,0.4)]" />
-                )}
               </motion.div>
             );
           })}
         </div>
-
-        {/* Additional reflections */}
-        <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-          <div className="absolute top-0 -left-[100%] w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[12deg] animate-slide" />
-          <div className="absolute inset-x-0 top-0 h-px bg-white/40" />
-          <div className="absolute inset-x-0 bottom-0 h-px bg-white/25" />
-          <div className="absolute inset-y-0 left-0 w-px bg-white/30" />
-          <div className="absolute inset-y-0 right-0 w-px bg-white/30" />
-          <div className="absolute top-0 left-0 w-8 h-8 bg-gradient-to-br from-white/30 to-transparent rounded-tl-xl" />
-          <div className="absolute top-0 right-0 w-8 h-8 bg-gradient-to-bl from-white/30 to-transparent rounded-tr-xl" />
-          <div className="absolute bottom-0 left-0 w-8 h-8 bg-gradient-to-tr from-white/15 to-transparent rounded-bl-xl" />
-          <div className="absolute bottom-0 right-0 w-8 h-8 bg-gradient-to-tl from-white/15 to-transparent rounded-br-xl" />
-        </div>
+        
+        {/* Base glow reflection */}
+        <div 
+          className="absolute left-0 right-0 bottom-0 h-32 -z-10 opacity-30"
+          style={{
+            background: `linear-gradient(to top, rgba(130, 130, 255, 0.15), transparent)`,
+            filter: 'blur(20px)',
+            transform: 'translateY(40%)'
+          }}
+        />
       </div>
     </div>
   );
@@ -469,21 +452,17 @@ export default function PianoKeyboard() {
 
 function getKeyboardShortcut(relativeIndex: number): string {
   const shortcuts = [
-    "A",
-    "W",
-    "S",
-    "E",
-    "D",
-    "F",
-    "T",
-    "G",
-    "Y",
-    "H",
-    "U",
-    "J",
-    "K",
+    "A", "W", "S", "E", "D", "F", "T", "G", "Y", "H", "U", "J",
+    "K", "L", "O", "P", "Z", "X", "C", "V",
   ];
-  return relativeIndex >= 0 && relativeIndex < shortcuts.length
-    ? shortcuts[relativeIndex]
-    : "";
+  return relativeIndex >= 0 && relativeIndex < shortcuts.length ? shortcuts[relativeIndex] : "";
 }
+
+// Add a global style for text shadow
+const style = document.createElement('style');
+style.textContent = `
+  .text-shadow {
+    text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+  }
+`;
+document.head.appendChild(style);
