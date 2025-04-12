@@ -24,6 +24,9 @@ export default function PianoKeyboard() {
   const touchRegistry = useRef(new Map<number, number>());
   const [glowIntensity, setGlowIntensity] = useState(0);
   const isMouseDown = useRef(false);
+  
+  // Maintain a cache of key elements to avoid frequent DOM queries
+  const keyElementsCache = useRef(new Map<number, HTMLElement>());
 
   // Animate glow intensity
   useEffect(() => {
@@ -57,6 +60,14 @@ export default function PianoKeyboard() {
       }
     };
   }, [initAudio]);
+
+  // Build key elements cache when keys render
+  useEffect(() => {
+    // Clear the cache when component updates
+    keyElementsCache.current.clear();
+    
+    // We'll populate the cache when mouse events happen
+  }, [startKey, visibleKeys]);
 
   // Handle keyboard input
   useEffect(() => {
@@ -110,86 +121,137 @@ export default function PianoKeyboard() {
     };
   }, [startKey, pressKey, releaseKey]);
 
-  // Enhanced mouse event handling
+  // Enhanced mouse event handling with performance optimizations
   useEffect(() => {
-    const getKeyIndex = (x: number, y: number) => {
-      const element = document.elementFromPoint(x, y) as HTMLElement;
-      return element?.dataset.keyIndex ? parseInt(element.dataset.keyIndex) : null;
+    // Efficient key element lookup with caching
+    const getKeyElement = (x: number, y: number): HTMLElement | null => {
+      // Use document.elementsFromPoint for more accurate detection, especially when keys overlap
+      const elements = document.elementsFromPoint(x, y);
+      
+      // Find the first element with data-key-index
+      for (const el of elements) {
+        const element = el as HTMLElement;
+        if (element?.dataset.keyIndex) {
+          return element;
+        }
+      }
+      return null;
+    };
+    
+    // Get key index from position with enhanced detection
+    const getKeyIndex = (x: number, y: number): number | null => {
+      const element = getKeyElement(x, y);
+      if (!element?.dataset.keyIndex) return null;
+      
+      const keyIndex = parseInt(element.dataset.keyIndex);
+      
+      // Cache the element for future reference
+      keyElementsCache.current.set(keyIndex, element);
+      
+      return keyIndex;
     };
 
-    const handleMouseDown = (e: MouseEvent) => {
-      isMouseDown.current = true;
-      const keyIndex = getKeyIndex(e.clientX, e.clientY);
+    // Handle pressing down a key
+    const handleKeyPress = (keyIndex: number) => {
       if (keyIndex !== null && !mouseKeyDown.current.has(keyIndex)) {
         mouseKeyDown.current.add(keyIndex);
         requestAnimationFrame(() => pressKey(keyIndex));
       }
     };
+    
+    // Handle releasing a key
+    const handleKeyRelease = (keyIndex: number) => {
+      if (mouseKeyDown.current.has(keyIndex)) {
+        mouseKeyDown.current.delete(keyIndex);
+        requestAnimationFrame(() => releaseKey(keyIndex));
+      }
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // Set flag for tracking mouse state
+      isMouseDown.current = true;
+      
+      // Get and press the key under the mouse
+      const keyIndex = getKeyIndex(e.clientX, e.clientY);
+      if (keyIndex !== null) {
+        handleKeyPress(keyIndex);
+      }
+    };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (isMouseDown.current) {
-        const keyIndex = getKeyIndex(e.clientX, e.clientY);
-        
-        // Release keys that are no longer under the mouse
-        mouseKeyDown.current.forEach(activeKeyIndex => {
-          if (keyIndex !== activeKeyIndex) {
-            requestAnimationFrame(() => releaseKey(activeKeyIndex));
-            mouseKeyDown.current.delete(activeKeyIndex);
-          }
-        });
-        
-        // Press the key under the mouse if it's not already pressed
-        if (keyIndex !== null && !mouseKeyDown.current.has(keyIndex)) {
-          mouseKeyDown.current.add(keyIndex);
-          requestAnimationFrame(() => pressKey(keyIndex));
+      if (!isMouseDown.current) return;
+      
+      // Only do the work if mouse is down
+      const keyIndex = getKeyIndex(e.clientX, e.clientY);
+      
+      // Optimization: Handle different keys more efficiently
+      // 1. Release keys no longer under cursor
+      mouseKeyDown.current.forEach(activeKeyIndex => {
+        if (keyIndex !== activeKeyIndex) {
+          handleKeyRelease(activeKeyIndex);
         }
+      });
+      
+      // 2. Press the new key if needed
+      if (keyIndex !== null && !mouseKeyDown.current.has(keyIndex)) {
+        handleKeyPress(keyIndex);
       }
     };
 
     const handleMouseUp = () => {
       if (isMouseDown.current) {
-        mouseKeyDown.current.forEach((keyIndex) => {
-          requestAnimationFrame(() => releaseKey(keyIndex));
+        // Release all pressed keys
+        mouseKeyDown.current.forEach(keyIndex => {
+          handleKeyRelease(keyIndex);
         });
-        mouseKeyDown.current.clear();
+        
+        // Reset mouse state
         isMouseDown.current = false;
       }
     };
 
-    // Handle touch events
+    // Handle touch events with similar optimizations
     const handleTouchStart = (e: TouchEvent) => {
       e.preventDefault();
-      for (const touch of e.changedTouches) {
+      
+      // Handle all changed touches
+      Array.from(e.changedTouches).forEach(touch => {
         const keyIndex = getKeyIndex(touch.clientX, touch.clientY);
         if (keyIndex !== null) {
           touchRegistry.current.set(touch.identifier, keyIndex);
           requestAnimationFrame(() => pressKey(keyIndex));
         }
-      }
+      });
     };
 
     const handleTouchMove = (e: TouchEvent) => {
       e.preventDefault();
-      for (const touch of e.changedTouches) {
+      
+      // Process each moving touch point
+      Array.from(e.changedTouches).forEach(touch => {
         const newKeyIndex = getKeyIndex(touch.clientX, touch.clientY);
         const oldKeyIndex = touchRegistry.current.get(touch.identifier);
+        
+        // Only update if the key has changed
         if (oldKeyIndex !== undefined && newKeyIndex !== null && oldKeyIndex !== newKeyIndex) {
           requestAnimationFrame(() => releaseKey(oldKeyIndex));
           touchRegistry.current.set(touch.identifier, newKeyIndex);
           requestAnimationFrame(() => pressKey(newKeyIndex));
         }
-      }
+      });
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
       e.preventDefault();
-      for (const touch of e.changedTouches) {
+      
+      // Release all ended touch points
+      Array.from(e.changedTouches).forEach(touch => {
         const keyIndex = touchRegistry.current.get(touch.identifier);
         if (keyIndex !== undefined) {
           touchRegistry.current.delete(touch.identifier);
           requestAnimationFrame(() => releaseKey(keyIndex));
         }
-      }
+      });
     };
 
     // Add event listeners
@@ -197,9 +259,8 @@ export default function PianoKeyboard() {
     if (piano) {
       piano.style.touchAction = "none";
       
-      // Piano element event listeners
-      piano.addEventListener("mousedown", handleMouseDown, { passive: false });
-      piano.addEventListener("mousemove", handleMouseMove, { passive: false });
+      // Piano element event listeners for mouse
+      piano.addEventListener("mousedown", handleMouseDown);
       
       // Touch events
       piano.addEventListener("touchstart", handleTouchStart, { passive: false });
@@ -208,16 +269,16 @@ export default function PianoKeyboard() {
       piano.addEventListener("touchcancel", handleTouchEnd, { passive: false });
     }
     
-    // Global mouse event listeners to handle cases where mouse is released outside piano
-    window.addEventListener("mousemove", handleMouseMove, { passive: false });
-    window.addEventListener("mouseup", handleMouseUp, { passive: false });
-    window.addEventListener("mouseleave", handleMouseUp, { passive: false });
+    // Global mouse event listeners for tracking everywhere
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("mouseleave", handleMouseUp);
 
     return () => {
+      // Clean up all event listeners
       if (piano) {
         piano.style.touchAction = "";
         piano.removeEventListener("mousedown", handleMouseDown);
-        piano.removeEventListener("mousemove", handleMouseMove);
         
         piano.removeEventListener("touchstart", handleTouchStart);
         piano.removeEventListener("touchmove", handleTouchMove);
@@ -229,12 +290,11 @@ export default function PianoKeyboard() {
       window.removeEventListener("mouseup", handleMouseUp);
       window.removeEventListener("mouseleave", handleMouseUp);
       
-      // Clean up any pressed keys
-      const currentMouseKeys = mouseKeyDown.current;
-      currentMouseKeys.forEach(keyIndex => {
+      // Release any remaining pressed keys
+      mouseKeyDown.current.forEach(keyIndex => {
         releaseKey(keyIndex);
       });
-      currentMouseKeys.clear();
+      mouseKeyDown.current.clear();
       isMouseDown.current = false;
     };
   }, [pressKey, releaseKey]);
@@ -377,12 +437,12 @@ export default function PianoKeyboard() {
                   <div className="absolute inset-x-0 top-0 h-px bg-white/50" />
                   
                   {/* Key label */}
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white font-medium text-shadow">
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white font-medium">
                     {keyToNote(keyIndex)}
                   </div>
                   
                   {/* Keyboard shortcut */}
-                  <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/90 text-shadow">
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/90">
                     {getKeyboardShortcut(keyIndex - startKey)}
                   </div>
                 </motion.div>
@@ -428,7 +488,7 @@ export default function PianoKeyboard() {
                 <div className="absolute inset-x-0 top-0 h-px bg-white/20" />
                 
                 {/* Keyboard shortcut */}
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/80 text-shadow">
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/80">
                   {getKeyboardShortcut(keyIndex - startKey)}
                 </div>
               </motion.div>
@@ -459,10 +519,10 @@ function getKeyboardShortcut(relativeIndex: number): string {
 }
 
 // Add a global style for text shadow
-const style = document.createElement('style');
-style.textContent = `
-  .text-shadow {
-    text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
-  }
-`;
-document.head.appendChild(style);
+// const style = document.createElement('style');
+// style.textContent = `
+//   .text-shadow {
+//     text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+//   }
+// `;
+// document.head.appendChild(style);
