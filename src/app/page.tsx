@@ -9,6 +9,7 @@ import PianoKeyboard from "@/components/piano-keyboard";
 // import KeySuggestions from "@/components/key-suggestions";
 // import DemoPlayer from "@/components/demo-player";
 import { motion } from "framer-motion";
+import NoteTrail from "@/components/note-trail";
 
 // Dynamically import SpaceBackground
 const SpaceBackground = dynamic(() => import("@/components/space-background"), {
@@ -32,6 +33,7 @@ export default function Home() {
 
   return (
     <main className="relative flex flex-col h-screen w-full overflow-hidden bg-black text-white">
+        <NoteTrail />
       {/* Space Background */}
       <SpaceBackground />
 

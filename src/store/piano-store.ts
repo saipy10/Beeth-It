@@ -1,3 +1,4 @@
+// src/store/piano-store.ts
 import { create } from "zustand";
 import * as Tone from "tone";
 
@@ -10,6 +11,7 @@ interface PianoState {
   isPlayingDemo: boolean;
   suggestedKeys: number[];
   setStartKey: (key: number) => void;
+  setVisibleKeys: (count: number) => void;
   pressKey: (key: number) => void;
   releaseKey: (key: number) => void;
   initAudio: () => Promise<void>;
@@ -19,23 +21,32 @@ interface PianoState {
 }
 
 export const usePianoStore = create<PianoState>((set, get) => ({
-  startKey: 36, // Middle C (C4) is key 39 in C-based mapping
+  startKey: 60, // C4
   visibleKeys: 13,
   activeKeys: new Set(),
   piano: null,
-  isLoading: false, // Start as false, only true during initAudio
+  isLoading: false,
   isPlayingDemo: false,
   suggestedKeys: [],
 
   setStartKey: (key) => {
-    const maxStart = 88 - get().visibleKeys;
+    const maxStart = 87 - get().visibleKeys + 1;
     const validKey = Math.max(0, Math.min(key, maxStart));
     set({ startKey: validKey });
+  },
+
+  setVisibleKeys: (count) => {
+    const newCount = Math.max(1, Math.min(18, count));
+    const maxStart = 87 - newCount + 1;
+    const newStartKey = Math.min(get().startKey, maxStart);
+    set({ visibleKeys: newCount, startKey: newStartKey });
   },
 
   pressKey: (key) => {
     const { piano, activeKeys, isLoading } = get();
     if (!piano || isLoading) return;
+
+    if (key < get().startKey || key >= get().startKey + get().visibleKeys) return;
 
     const newActiveKeys = new Set(activeKeys);
     newActiveKeys.add(key);
@@ -76,29 +87,36 @@ export const usePianoStore = create<PianoState>((set, get) => ({
 
       const piano = new Tone.Sampler({
         urls: {
-          A1: "A1.mp3",
-          A2: "A2.mp3",
-          A3: "A3.mp3",
-          A4: "A4.mp3",
-          A5: "A5.mp3",
-          A6: "A6.mp3",
+          A0: "A0.mp3",
           C1: "C1.mp3",
-          C2: "C2.mp3",
-          C3: "C3.mp3",
-          C4: "C4.mp3",
-          C5: "C5.mp3",
-          C6: "C6.mp3",
-          C7: "C7.mp3",
           "D#1": "Ds1.mp3",
-          "D#2": "Ds2.mp3",
-          "D#3": "Ds3.mp3",
-          "D#4": "Ds4.mp3",
-          "D#5": "Ds5.mp3",
           "F#1": "Fs1.mp3",
+          A1: "A1.mp3",
+          C2: "C2.mp3",
+          "D#2": "Ds2.mp3",
           "F#2": "Fs2.mp3",
+          A2: "A2.mp3",
+          C3: "C3.mp3",
+          "D#3": "Ds3.mp3",
           "F#3": "Fs3.mp3",
+          A3: "A3.mp3",
+          C4: "C4.mp3",
+          "D#4": "Ds4.mp3",
           "F#4": "Fs4.mp3",
+          A4: "A4.mp3",
+          C5: "C5.mp3",
+          "D#5": "Ds5.mp3",
           "F#5": "Fs5.mp3",
+          A5: "A5.mp3",
+          C6: "C6.mp3",
+          "D#6": "Ds6.mp3",
+          "F#6": "Fs6.mp3",
+          A6: "A6.mp3",
+          C7: "C7.mp3",
+          "D#7": "Ds7.mp3",
+          "F#7": "Fs7.mp3",
+          A7: "A7.mp3",
+          C8: "C8.mp3",
         },
         release: 1,
         baseUrl: "https://tonejs.github.io/audio/salamander/",
@@ -107,7 +125,7 @@ export const usePianoStore = create<PianoState>((set, get) => ({
           set({
             isLoading: false,
             piano,
-            suggestedKeys: [39, 41, 43, 44, 46, 48, 50, 51], // C major scale from C4
+            suggestedKeys: [60, 62, 64, 65, 67, 69, 71, 72], // C major scale from C4
           });
         },
         onerror: (err) => {
@@ -196,7 +214,7 @@ export const usePianoStore = create<PianoState>((set, get) => ({
 
 export function keyToNote(key: number): string {
   const notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-  const octave = Math.floor(key / 12) + 1; // C-based mapping
+  const octave = Math.floor(key / 12) - 1;
   const noteIndex = key % 12;
   return `${notes[noteIndex]}${octave}`;
 }
@@ -207,5 +225,5 @@ export function noteToKey(note: string): number {
   const octave = Number.parseInt(note.slice(-1));
   const noteIndex = notes.indexOf(noteName);
   if (noteIndex === -1) return -1;
-  return (octave - 1) * 12 + noteIndex;
+  return (octave + 1) * 12 + noteIndex;
 }
