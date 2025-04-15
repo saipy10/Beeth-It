@@ -2,6 +2,18 @@
 import { create } from "zustand";
 import * as Tone from "tone";
 
+interface SongNote {
+  midi: number;
+  duration: number;
+  time: number;
+}
+
+interface Song {
+  name: string;
+  notes: SongNote[];
+  range: { min: number; max: number };
+}
+
 interface PianoState {
   startKey: number;
   visibleKeys: number;
@@ -10,13 +22,16 @@ interface PianoState {
   isLoading: boolean;
   isPlayingDemo: boolean;
   suggestedKeys: number[];
+  currentSong: Song | null;
+  songProgress: number;
+  velocity: Map<number, number>; // Add velocity map to track key velocity
   setStartKey: (key: number) => void;
   setVisibleKeys: (count: number) => void;
-  pressKey: (key: number) => void;
+  pressKey: (key: number, vel?: number) => void; // Update to accept velocity
   releaseKey: (key: number) => void;
   initAudio: () => Promise<void>;
-  playDemo: () => void;
-  stopDemo: () => void;
+  playSong: (song: Song) => void;
+  stopSong: () => void;
   setSuggestedKeys: (keys: number[]) => void;
 }
 
@@ -28,6 +43,9 @@ export const usePianoStore = create<PianoState>((set, get) => ({
   isLoading: false,
   isPlayingDemo: false,
   suggestedKeys: [],
+  currentSong: null,
+  songProgress: 0,
+  velocity: new Map(), // Initialize velocity map
 
   setStartKey: (key) => {
     const maxStart = 87 - get().visibleKeys + 1;
@@ -42,27 +60,45 @@ export const usePianoStore = create<PianoState>((set, get) => ({
     set({ visibleKeys: newCount, startKey: newStartKey });
   },
 
-  pressKey: (key) => {
-    const { piano, activeKeys, isLoading } = get();
+  pressKey: (key, vel = 0.7) => {
+    const { piano, activeKeys, isLoading, velocity } = get();
     if (!piano || isLoading) return;
 
     if (key < get().startKey || key >= get().startKey + get().visibleKeys) return;
 
     const newActiveKeys = new Set(activeKeys);
     newActiveKeys.add(key);
-    set({ activeKeys: newActiveKeys });
+    
+    // Store the velocity for this key
+    const newVelocity = new Map(velocity);
+    newVelocity.set(key, vel);
+    
+    set({ 
+      activeKeys: newActiveKeys,
+      velocity: newVelocity
+    });
 
     const note = keyToNote(key);
-    piano.triggerAttack(note);
+    // Use velocity in triggering the note
+    piano.triggerAttack(note, Tone.now(), vel);
   },
 
   releaseKey: (key) => {
-    const { piano, activeKeys, isLoading } = get();
+    const { piano, activeKeys, isLoading, velocity } = get();
     if (!piano || isLoading) return;
 
     const newActiveKeys = new Set(activeKeys);
     newActiveKeys.delete(key);
-    set({ activeKeys: newActiveKeys });
+    
+    // Clean up velocity data for released key
+    const newVelocity = new Map(velocity);
+    // Keep velocity in map for animation purposes
+    // Will be removed when animation is complete
+    
+    set({ 
+      activeKeys: newActiveKeys,
+      velocity: newVelocity
+    });
 
     const note = keyToNote(key);
     piano.triggerRelease(note);
@@ -111,10 +147,6 @@ export const usePianoStore = create<PianoState>((set, get) => ({
           C6: "C6.mp3",
           "D#6": "Ds6.mp3",
           "F#6": "Fs6.mp3",
-          A6: "A6.mp3",
-          C7: "C7.mp3",
-          "D#7": "Ds7.mp3",
-          "F#7": "Fs7.mp3",
           A7: "A7.mp3",
           C8: "C8.mp3",
         },
@@ -125,7 +157,7 @@ export const usePianoStore = create<PianoState>((set, get) => ({
           set({
             isLoading: false,
             piano,
-            suggestedKeys: [60, 62, 64, 65, 67, 69, 71, 72], // C major scale from C4
+            suggestedKeys: [60, 62, 64, 65, 67, 69, 71, 72], // C major scale
           });
         },
         onerror: (err) => {
@@ -142,69 +174,64 @@ export const usePianoStore = create<PianoState>((set, get) => ({
     }
   },
 
-  playDemo: () => {
+  playSong: (song: Song) => {
     const { piano, isLoading } = get();
     if (!piano || isLoading || get().isPlayingDemo) return;
 
-    set({ isPlayingDemo: true });
+    set({ isPlayingDemo: true, currentSong: song, songProgress: 0, activeKeys: new Set() });
 
-    const furEliseNotes = [
-      { note: "E5", time: "0:0", duration: "8n" },
-      { note: "D#5", time: "0:0.5", duration: "8n" },
-      { note: "E5", time: "0:1", duration: "8n" },
-      { note: "D#5", time: "0:1.5", duration: "8n" },
-      { note: "E5", time: "0:2", duration: "8n" },
-      { note: "B4", time: "0:2.5", duration: "8n" },
-      { note: "D5", time: "0:3", duration: "8n" },
-      { note: "C5", time: "0:3.5", duration: "8n" },
-      { note: "A4", time: "0:4", duration: "4n" },
-      { note: "C4", time: "0:5", duration: "8n" },
-      { note: "E4", time: "0:5.5", duration: "8n" },
-      { note: "A4", time: "0:6", duration: "8n" },
-      { note: "B4", time: "0:6.5", duration: "8n" },
-      { note: "E4", time: "0:7", duration: "8n" },
-      { note: "G#4", time: "0:7.5", duration: "8n" },
-      { note: "B4", time: "0:8", duration: "8n" },
-      { note: "C5", time: "0:8.5", duration: "8n" },
-      { note: "E5", time: "0:9", duration: "8n" },
-      { note: "D#5", time: "0:9.5", duration: "8n" },
-      { note: "E5", time: "0:10", duration: "8n" },
-      { note: "D#5", time: "0:10.5", duration: "8n" },
-      { note: "E5", time: "0:11", duration: "8n" },
-      { note: "B4", time: "0:11.5", duration: "8n" },
-      { note: "D5", time: "0:12", duration: "8n" },
-      { note: "C5", time: "0:12.5", duration: "8n" },
-      { note: "A4", time: "0:13", duration: "4n" },
-    ];
+    // Set visible keys and center range
+    const rangeSize = song.range.max - song.range.min + 1;
+    const visible = Math.min(Math.max(rangeSize, 7), 18);
+    get().setVisibleKeys(visible);
+    const centerKey = Math.floor((song.range.min + song.range.max) / 2);
+    get().setStartKey(centerKey - Math.floor(visible / 2));
 
-    const part = new Tone.Part((time, note) => {
-      const keyIndex = noteToKey(note.note);
-      if (keyIndex !== -1) {
-        piano.triggerAttackRelease(note.note, note.duration, time);
-        get().pressKey(keyIndex);
-        Tone.Transport.schedule(() => {
-          get().releaseKey(keyIndex);
-        }, time + Tone.Time(note.duration).toSeconds());
+    const startTime = performance.now();
+    let noteIndex = 0;
+
+    const update = () => {
+      const elapsed = performance.now() - startTime;
+      const totalTime = song.notes[song.notes.length - 1].time + song.notes[song.notes.length - 1].duration;
+      set({ songProgress: elapsed / totalTime });
+
+      // Play notes
+      while (noteIndex < song.notes.length && song.notes[noteIndex].time <= elapsed) {
+        const note = song.notes[noteIndex];
+        get().pressKey(note.midi);
+        setTimeout(() => {
+          get().releaseKey(note.midi);
+        }, note.duration);
+        noteIndex++;
       }
-    }, furEliseNotes).start(0);
 
-    Tone.Transport.bpm.value = 80;
-    Tone.Transport.start();
+      // Auto-scroll
+      const currentNotes = song.notes.filter(
+        (n) => n.time <= elapsed && n.time + n.duration >= elapsed
+      );
+      if (currentNotes.length > 0) {
+        const minNote = Math.min(...currentNotes.map((n) => n.midi));
+        const maxNote = Math.max(...currentNotes.map((n) => n.midi));
+        const center = Math.floor((minNote + maxNote) / 2);
+        const currentStart = get().startKey;
+        const visible = get().visibleKeys;
+        if (center < currentStart + 2 || center > currentStart + visible - 3) {
+          get().setStartKey(center - Math.floor(visible / 2));
+        }
+      }
 
-    Tone.Transport.schedule(() => {
-      part.dispose();
-      Tone.Transport.stop();
-      Tone.Transport.cancel();
-      set({ isPlayingDemo: false, activeKeys: new Set() });
-    }, "0:14");
+      if (elapsed < totalTime) {
+        requestAnimationFrame(update);
+      } else {
+        get().stopSong();
+      }
+    };
+    requestAnimationFrame(update);
   },
 
-  stopDemo: () => {
+  stopSong: () => {
     if (!get().isPlayingDemo) return;
-
-    Tone.Transport.stop();
-    Tone.Transport.cancel();
-    set({ activeKeys: new Set(), isPlayingDemo: false });
+    set({ isPlayingDemo: false, activeKeys: new Set(), songProgress: 0, currentSong: null });
   },
 
   setSuggestedKeys: (keys) => {

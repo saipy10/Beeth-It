@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePianoStore, keyToNote } from "@/store/piano-store";
 import { Loader2, Play } from "lucide-react";
-import { PianoControls } from "@/components/piano-controls";
+import OptionsTab from "./options-tab"; // Import the OptionsTab component
 
 export default function PianoKeyboard() {
   const {
@@ -16,8 +16,6 @@ export default function PianoKeyboard() {
     suggestedKeys,
     isLoading,
     initAudio,
-    setVisibleKeys,
-    setStartKey,
   } = usePianoStore();
 
   const pianoRef = useRef<HTMLDivElement>(null);
@@ -111,18 +109,6 @@ export default function PianoKeyboard() {
       )
         return;
 
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        setStartKey(Math.max(0, startKey - 1));
-        return;
-      }
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        const maxStart = 87 - visibleKeys + 1;
-        setStartKey(Math.min(maxStart, startKey + 1));
-        return;
-      }
-
       const key = e.key.toLowerCase();
       if (keyboardKeysDown.current.has(key) || keyMap[key] === undefined) return;
       e.preventDefault();
@@ -164,7 +150,7 @@ export default function PianoKeyboard() {
       window.removeEventListener("blur", cleanupKeys);
       cleanupKeys();
     };
-  }, [startKey, visibleKeys, pressKey, releaseKey, setStartKey]);
+  }, [startKey, visibleKeys, pressKey, releaseKey]);
 
   // Handle mouse and touch events
   useEffect(() => {
@@ -400,13 +386,8 @@ export default function PianoKeyboard() {
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-end p-4 bg-gradient-to-b from-black/5 to-black/20">
-      {/* Controls */}
-      <PianoControls
-        visibleKeys={visibleKeys}
-        startKey={startKey}
-        setVisibleKeys={setVisibleKeys}
-        setStartKey={setStartKey}
-      />
+      {/* Options Tab */}
+      <OptionsTab />
 
       <div
         ref={pianoRef}

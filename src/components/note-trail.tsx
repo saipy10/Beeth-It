@@ -1,196 +1,308 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { usePianoStore } from "@/store/piano-store";
+import { debounce } from "lodash";
 
-interface NoteParticle {
+interface NoteTile {
   id: string;
   keyIndex: number;
   x: number;
   y: number;
-  velocityY: number;
-  opacity: number;
+  width: number;
   color: string;
-  size: number;
-  twinklePhase: number;
+  glowIntensity: number;
+  startTime: number;
+  releaseTime: number | null;
+  height: number;
+  velocity: number;
+  releasedYVelocity?: number;
+  opacity: number;
+  glowSize: number;
+  initialY: number;
+  active: boolean; // Track if this note is currently active
+}
+
+interface VisualizerSettings {
+  trailSpeed: number;
+  glowIntensity: number;
+  fadeRate: number;
+  particleEffect: boolean;
+  minimumTileHeight: number;
 }
 
 export default function NoteTrail() {
-  const { activeKeys, startKey, visibleKeys } = usePianoStore();
+  const { activeKeys, startKey, visibleKeys, velocity = new Map() } = usePianoStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const particlesRef = useRef<NoteParticle[]>([]);
+  const tilesRef = useRef<NoteTile[]>([]);
+  const particlesRef = useRef<Array<{x: number, y: number, size: number, color: string, vx: number, vy: number, opacity: number}>>([]);
   const animationFrameRef = useRef<number | null>(null);
   const pianoContainerRef = useRef<HTMLDivElement>(null);
-  const lastParticleTimeRef = useRef<Map<number, number>>(new Map());
+  const lastFrameTime = useRef<number>(0);
+  const previousActiveKeys = useRef<Set<number>>(new Set());
+  const keyPositions = useRef<Map<number, { x: number; width: number; top: number; isBlack: boolean }>>(new Map());
+  
+  // Settings
+  const [settings] = useState<VisualizerSettings>({
+    trailSpeed: 0.18,
+    glowIntensity: 0.7,
+    fadeRate: 0.01,
+    particleEffect: true,
+    minimumTileHeight: 20,
+  });
 
-  // Calculate key positions
-  const keyPositions = useRef<Map<number, { x: number; width: number; top: number }>>(new Map());
+  const getNoteColor = useCallback((notePosition: number, isBlackKey: boolean) => {
+    const colorPalettes = {
+      standard: [
+        "#9966FF", "#4338CA", "#2563EB", "#0891B2",
+        "#0D9488", "#15803D", "#65A30D", "#CA8A04",
+        "#D97706", "#EA580C", "#DC2626", "#DB2777"
+      ],
+      vibrant: [
+        "#8B5CF6", "#3B82F6", "#06B6D4", "#10B981", 
+        "#84CC16", "#EAB308", "#F59E0B", "#F97316", 
+        "#EF4444", "#EC4899", "#A855F7", "#6366F1"
+      ]
+    };
+    
+    const palette = isBlackKey ? colorPalettes.vibrant : colorPalettes.standard;
+    return palette[notePosition % 12];
+  }, []);
 
-  // Color theme matching PianoKeyboard
-  const getNoteColor = (notePosition: number) => {
-    const colors = [
-      "rgba(153, 51, 255, 0.8)", // C - vibrant purple
-      "rgba(67, 56, 202, 0.8)", // C# - deep indigo
-      "rgba(37, 99, 235, 0.8)", // D - rich blue
-      "rgba(8, 145, 178, 0.8)", // D# - teal-cyan
-      "rgba(13, 148, 136, 0.8)", // E - deep teal
-      "rgba(21, 128, 61, 0.8)", // F - forest green
-      "rgba(101, 163, 13, 0.8)", // F# - olive lime
-      "rgba(202, 138, 4, 0.8)", // G - golden yellow
-      "rgba(217, 119, 6, 0.8)", // G# - deep amber
-      "rgba(234, 88, 12, 0.8)", // A - vivid orange
-      "rgba(220, 38, 38, 0.8)", // A# - crimson red
-      "rgba(219, 39, 119, 0.8)", // B - hot pink
-    ];
-    return colors[notePosition % 12];
-  };
-
-  // Update key positions
-  useEffect(() => {
-    const updateKeyPositions = () => {
+  const updateKeyPositions = useCallback(
+    debounce(() => {
       keyPositions.current.clear();
-      const pianoKeys = document.querySelectorAll("[data-key-index]");
-      pianoKeys.forEach((key) => {
+      document.querySelectorAll("[data-key-index]").forEach((key) => {
         const keyIndex = parseInt(key.getAttribute("data-key-index") || "0");
         const rect = key.getBoundingClientRect();
         const containerRect = pianoContainerRef.current?.getBoundingClientRect();
+        const isBlack = key.classList.contains("black-key") || key.getAttribute("data-is-black") === "true";
+        
         if (containerRect) {
           keyPositions.current.set(keyIndex, {
             x: rect.left - containerRect.left + rect.width / 2,
             width: rect.width,
             top: rect.top - containerRect.top,
+            isBlack
           });
         }
       });
-    };
+    }, 100),
+    []
+  );
 
+  const createParticles = useCallback((x: number, y: number, color: string, count: number, velocity: number) => {
+    if (!settings.particleEffect) return;
+    
+    for (let i = 0; i < count; i++) {
+      particlesRef.current.push({
+        x: x + (Math.random() - 0.5) * 10, // Small variation around the point
+        y: y,
+        size: 1 + Math.random() * 3,
+        color: color,
+        vx: (Math.random() - 0.5) * 2,
+        vy: -(Math.random() * 3 + velocity * 2), // Higher velocity for harder keypress
+        opacity: 0.8 + Math.random() * 0.2
+      });
+    }
+  }, [settings.particleEffect]);
+
+  // Initialize key positions
+  useEffect(() => {
     updateKeyPositions();
     window.addEventListener("resize", updateKeyPositions);
-
     return () => {
       window.removeEventListener("resize", updateKeyPositions);
+      updateKeyPositions.cancel();
     };
-  }, [startKey, visibleKeys]);
+  }, [startKey, visibleKeys, updateKeyPositions]);
 
-  // Particle generation and animation
+  // Handle key changes
+  useEffect(() => {
+    const now = performance.now();
+    
+    const newlyPressedKeys = Array.from(activeKeys).filter(key => !previousActiveKeys.current.has(key));
+    const releasedKeys = Array.from(previousActiveKeys.current).filter(key => !activeKeys.has(key));
+    
+    newlyPressedKeys.forEach(keyIndex => {
+      const pos = keyPositions.current.get(keyIndex);
+      if (!pos) return;
+      
+      const keyVelocity = velocity.get(keyIndex) || 0.5 + Math.random() * 0.5;
+      const tileWidth = pos.width * 0.6;
+      
+      const tile: NoteTile = {
+        id: `${keyIndex}-${now}`,
+        keyIndex,
+        x: pos.x - tileWidth / 2,
+        y: pos.top,
+        initialY: pos.top,
+        width: tileWidth,
+        color: getNoteColor(keyIndex % 12, pos.isBlack),
+        glowIntensity: settings.glowIntensity * (0.7 + keyVelocity * 0.3),
+        velocity: keyVelocity,
+        startTime: now,
+        releaseTime: null,
+        height: 0,
+        opacity: 1,
+        glowSize: 10 + keyVelocity * 5,
+        active: true
+      };
+      
+      tilesRef.current.push(tile);
+      
+      createParticles(tile.x + tile.width / 2, tile.initialY, tile.color, Math.floor(3 + tile.velocity * 5), tile.velocity);
+    });
+    
+    releasedKeys.forEach(keyIndex => {
+      tilesRef.current.forEach(tile => {
+        if (tile.keyIndex === keyIndex && tile.active && tile.releaseTime === null) {
+          tile.releaseTime = now;
+          tile.active = false;
+          
+          if (tile.height < settings.minimumTileHeight) {
+            tile.height = settings.minimumTileHeight;
+          }
+          
+          createParticles(tile.x + tile.width / 2, tile.y, tile.color, Math.floor(5 + tile.velocity * 10), tile.velocity);
+        }
+      });
+    });
+    
+    previousActiveKeys.current = new Set(activeKeys);
+  }, [activeKeys, getNoteColor, createParticles, settings, velocity]);
+
+  // Canvas drawing and animation
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
 
     const resizeCanvas = () => {
-      const container = pianoContainerRef.current;
-      if (container) {
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight * 2;
+      if (pianoContainerRef.current) {
+        const { clientWidth, clientHeight } = pianoContainerRef.current;
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = clientWidth * dpr;
+        canvas.height = clientHeight * dpr;
+        canvas.style.width = `${clientWidth}px`;
+        canvas.style.height = `${clientHeight}px`;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
       }
     };
 
     resizeCanvas();
     window.addEventListener("resize", resizeCanvas);
 
-    // Generate particles
-    const updateParticles = () => {
-      const now = performance.now();
-      activeKeys.forEach((keyIndex) => {
-        const pos = keyPositions.current.get(keyIndex);
-        if (!pos) return;
-
-        // Spawn every 200ms
-        const lastSpawn = lastParticleTimeRef.current.get(keyIndex) || 0;
-        if (now - lastSpawn > 200) {
-          const particleCount = 1 + Math.floor(Math.random() * 2); // 1-2 particles
-          for (let i = 0; i < particleCount; i++) {
-            particlesRef.current.push({
-              id: `${keyIndex}-${now}-${i}`,
-              keyIndex,
-              x: pos.x + (Math.random() - 0.5) * pos.width * 0.3,
-              y: pos.top,
-              velocityY: -(4 + Math.random() * 2), // Slow rise
-              opacity: 1,
-              color: getNoteColor(keyIndex % 12),
-              size: 2 + Math.random() * 2, // Small star size
-              twinklePhase: Math.random() * Math.PI * 2,
-            });
-          }
-          lastParticleTimeRef.current.set(keyIndex, now);
-        }
-      });
-
-      lastParticleTimeRef.current.forEach((_, keyIndex) => {
-        if (!activeKeys.has(keyIndex)) {
-          lastParticleTimeRef.current.delete(keyIndex);
-        }
-      });
-    };
-
-    // Animation loop
-    const animate = () => {
+    const animate = (timestamp: number) => {
       if (!ctx || !canvas) return;
-
+      
+      const deltaTime = lastFrameTime.current ? (timestamp - lastFrameTime.current) / 16.667 : 1;
+      lastFrameTime.current = timestamp;
+      
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      particlesRef.current = particlesRef.current.filter((particle) => {
-        particle.y += particle.velocityY;
-        const twinkle = 1 + Math.sin(particle.twinklePhase + performance.now() * 0.008) * 0.4;
-        particle.twinklePhase += 0.1;
-        particle.size = (2 + Math.random() * 2) * twinkle * 0.8;
+      tilesRef.current.sort((a, b) => a.startTime - b.startTime);
 
-        // Remove particles at the top of the page
-        if (particle.y <= 0) return false;
+      tilesRef.current = tilesRef.current.filter((tile) => {
+        if (tile.releaseTime === null) {
+          const delta = timestamp - tile.startTime;
+          const newHeight = delta * settings.trailSpeed * (0.8 + tile.velocity * 0.4);
+          tile.height = newHeight;
+          tile.y = tile.initialY - tile.height;
+        } else {
+          tile.releasedYVelocity ??= 1 + tile.velocity * 2;
+          tile.y -= tile.releasedYVelocity * deltaTime;
+          tile.opacity -= settings.fadeRate * deltaTime;
+          tile.glowSize *= 0.99;
+        }
 
-        // Star core
-        ctx.beginPath();
-        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-        ctx.fillStyle = particle.color.replace("0.8", particle.opacity.toString());
-        ctx.fill();
+        if (tile.opacity <= 0 || tile.y + tile.height < 0) {
+          return false;
+        }
 
-        // Star cross pattern
-        ctx.beginPath();
-        ctx.moveTo(particle.x - particle.size * 2, particle.y);
-        ctx.lineTo(particle.x + particle.size * 2, particle.y);
-        ctx.moveTo(particle.x, particle.y - particle.size * 2);
-        ctx.lineTo(particle.x, particle.y + particle.size * 2);
-        ctx.strokeStyle = particle.color.replace("0.8", (particle.opacity * 0.5).toString());
-        ctx.lineWidth = particle.size * 0.5;
-        ctx.stroke();
+        ctx.save();
+        ctx.globalAlpha = tile.opacity;
 
-        // Outer glow
-        ctx.beginPath();
-        ctx.arc(particle.x, particle.y, particle.size * 4, 0, Math.PI * 2);
-        ctx.fillStyle = particle.color.replace("0.8", (particle.opacity * 0.2).toString());
-        ctx.fill();
+        const gradient = ctx.createLinearGradient(tile.x, tile.y + tile.height, tile.x, tile.y);
+        gradient.addColorStop(0, tile.color + "00");
+        gradient.addColorStop(0.2, tile.color + "30");
+        gradient.addColorStop(0.7, tile.color + "AA");
+        gradient.addColorStop(1, tile.color + "FF");
+
+        ctx.fillStyle = gradient;
+        ctx.shadowColor = tile.color;
+        ctx.shadowBlur = tile.glowSize * tile.glowIntensity;
+
+        const radius = Math.min(tile.width / 2, 4);
+        roundRect(ctx, tile.x, tile.y, tile.width, tile.height, radius);
+        ctx.restore();
 
         return true;
       });
 
-      updateParticles();
+      particlesRef.current = particlesRef.current.filter(particle => {
+        particle.x += particle.vx * deltaTime;
+        particle.y += particle.vy * deltaTime;
+        particle.size *= 0.97;
+        particle.opacity *= 0.95;
+
+        if (particle.opacity < 0.05 || particle.size < 0.2) return false;
+
+        ctx.save();
+        ctx.globalAlpha = particle.opacity;
+        ctx.fillStyle = particle.color;
+        ctx.shadowColor = particle.color;
+        ctx.shadowBlur = particle.size * 2;
+        ctx.beginPath();
+        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        return true;
+      });
+
       animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
+    function roundRect(
+      ctx: CanvasRenderingContext2D,
+      x: number,
+      y: number,
+      width: number,
+      height: number,
+      radius: number
+    ) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height);
+      ctx.lineTo(x, y + height);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener("resize", resizeCanvas);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [activeKeys, startKey, visibleKeys]);
+  }, [settings]);
 
   return (
     <div
       ref={pianoContainerRef}
-      className="absolute left-0 right-0 top-0 bottom-0 pointer-events-none overflow-visible"
+      className="absolute inset-0 pointer-events-none overflow-visible"
       style={{ zIndex: 100 }}
     >
       <canvas
         ref={canvasRef}
-        className="absolute left-0 right-0 top-0 bottom-0"
-        style={{
-          background: "transparent",
-          filter: "blur(2px)",
-        }}
+        className="absolute inset-0"
+        style={{ background: "transparent" }}
       />
     </div>
   );

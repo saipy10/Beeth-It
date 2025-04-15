@@ -10,6 +10,8 @@ import PianoKeyboard from "@/components/piano-keyboard";
 // import DemoPlayer from "@/components/demo-player";
 import { motion } from "framer-motion";
 import NoteTrail from "@/components/note-trail";
+// import DemoPlayer from "@/components/demo-player";
+// import OptionsTab from "@/components/options-tab"; // Import the new component
 
 // Dynamically import SpaceBackground
 const SpaceBackground = dynamic(() => import("@/components/space-background"), {
@@ -33,10 +35,9 @@ export default function Home() {
 
   return (
     <main className="relative flex flex-col h-screen w-full overflow-hidden bg-black text-white">
-        <NoteTrail />
+      <NoteTrail />
       {/* Space Background */}
       <SpaceBackground />
-
       {/* Content Container */}
       <div className="relative z-10 flex flex-col h-full w-full">
         {/* Title and Description */}
@@ -75,9 +76,9 @@ export default function Home() {
           <div className="flex-1 relative">
             <PianoKeyboard />
             {/* <FingerAnimations /> */}
-            {/* <DemoPlayer /> */}
           </div>
         </div>
+        {/* <DemoPlayer/> */}
       </div>
     </main>
   );
