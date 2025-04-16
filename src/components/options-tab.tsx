@@ -2,14 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { Keyboard, Settings, X } from "lucide-react";
+import { Keyboard, Settings, X, Volume2, VolumeX } from "lucide-react";
 import { keyToNote, usePianoStore } from "@/store/piano-store";
 import { debounce } from "lodash";
 
 const OptionsTab = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const { startKey, visibleKeys, setStartKey, setVisibleKeys } = usePianoStore();
+  const { startKey, visibleKeys, volume, setStartKey, setVisibleKeys, setVolume } = usePianoStore();
 
   const expandRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -29,6 +29,28 @@ const OptionsTab = () => {
     }, 100),
     [setStartKey, visibleKeys]
   );
+
+  const handleVolumeChange = useCallback(
+    (value: string | number) => {
+      const newValue = Math.max(-40, Math.min(0, parseFloat(value.toString())));
+      setVolume(newValue);
+    },
+    [setVolume]
+  );
+
+  // Format volume for display
+  const formatVolume = (value: number) => {
+    if (value <= -40) return "Mute";
+    // Calculate percentage (0% at -40dB, 100% at 0dB)
+    return `${Math.round((value + 40) / 40 * 100)}%`;
+  };
+
+  // Quick volume shortcuts
+  const setMute = () => handleVolumeChange(-40);
+  const setLow = () => handleVolumeChange(-30);
+  const setMedium = () => handleVolumeChange(-15); 
+  const setHigh = () => handleVolumeChange(-5);
+  const setMax = () => handleVolumeChange(0);
 
   const toggleExpand = () => {
     setIsExpanded(!isExpanded);
@@ -104,6 +126,92 @@ const OptionsTab = () => {
             </button>
           </div>
 
+          {/* Volume Control - Now first for importance */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-purple-200 mb-2 flex items-center">
+              {volume <= -40 ? (
+                <VolumeX className="w-4 h-4 mr-2 text-purple-400" />
+              ) : (
+                <Volume2 className="w-4 h-4 mr-2 text-purple-400" />
+              )}
+              Volume
+            </label>
+
+            <div className="relative mt-3 bg-gray-800/80 p-3 rounded-lg border border-purple-500/30">
+              <div className="flex items-center mb-3">
+                <span className="text-xs font-medium text-purple-300 w-24">Level:</span>
+                <div className="flex items-center flex-1">
+                  <motion.button
+                    onClick={() => handleVolumeChange(volume - 5)}
+                    className="w-5 h-5 rounded-full bg-purple-900/70 text-purple-200 border border-purple-500/50 flex items-center justify-center hover:bg-purple-800/90 transition-colors"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <span className="text-sm font-semibold">-</span>
+                  </motion.button>
+                  <input
+                    type="range"
+                    min="-40"
+                    max="0"
+                    step="1"
+                    value={volume}
+                    onChange={(e) => handleVolumeChange(e.target.value)}
+                    className="mx-2 flex-1 h-1 bg-purple-900/60 rounded-lg appearance-none cursor-pointer"
+                    style={{
+                      background: "linear-gradient(90deg, rgba(124, 58, 237, 0.4), rgba(124, 58, 237, 0.15))",
+                    }}
+                  />
+                  <motion.button
+                    onClick={() => handleVolumeChange(volume + 5)}
+                    className="w-5 h-5 rounded-full bg-purple-900/70 text-purple-200 border border-purple-500/50 flex items-center justify-center hover:bg-purple-800/90 transition-colors"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <span className="text-sm font-semibold">+</span>
+                  </motion.button>
+                </div>
+                <span className="text-xs text-purple-300 ml-3 w-16 text-right">
+                  {formatVolume(volume)}
+                </span>
+              </div>
+              
+              {/* Volume presets */}
+              <div className="flex justify-between px-1">
+                <button 
+                  onClick={setMute}
+                  className={`text-xs px-2 py-1 rounded ${volume <= -40 ? 'bg-purple-700/80 text-white' : 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50'}`}
+                >
+                  Mute
+                </button>
+                <button 
+                  onClick={setLow}
+                  className={`text-xs px-2 py-1 rounded ${volume > -40 && volume <= -20 ? 'bg-purple-700/80 text-white' : 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50'}`}
+                >
+                  Low
+                </button>
+                <button 
+                  onClick={setMedium}
+                  className={`text-xs px-2 py-1 rounded ${volume > -20 && volume <= -10 ? 'bg-purple-700/80 text-white' : 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50'}`}
+                >
+                  Med
+                </button>
+                <button 
+                  onClick={setHigh}
+                  className={`text-xs px-2 py-1 rounded ${volume > -10 && volume < 0 ? 'bg-purple-700/80 text-white' : 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50'}`}
+                >
+                  High
+                </button>
+                <button 
+                  onClick={setMax}
+                  className={`text-xs px-2 py-1 rounded ${volume >= 0 ? 'bg-purple-700/80 text-white' : 'bg-purple-900/30 text-purple-300 hover:bg-purple-900/50'}`}
+                >
+                  Max
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Keyboard Size Controls */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-purple-200 mb-2 flex items-center">
               <Keyboard className="w-4 h-4 mr-2 text-purple-400" />

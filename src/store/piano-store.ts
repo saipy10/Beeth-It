@@ -24,15 +24,17 @@ interface PianoState {
   suggestedKeys: number[];
   currentSong: Song | null;
   songProgress: number;
-  velocity: Map<number, number>; // Add velocity map to track key velocity
+  velocity: Map<number, number>; // Track key velocity
+  volume: number; // Add volume property
   setStartKey: (key: number) => void;
   setVisibleKeys: (count: number) => void;
-  pressKey: (key: number, vel?: number) => void; // Update to accept velocity
+  pressKey: (key: number, vel?: number) => void;
   releaseKey: (key: number) => void;
   initAudio: () => Promise<void>;
   playSong: (song: Song) => void;
   stopSong: () => void;
   setSuggestedKeys: (keys: number[]) => void;
+  setVolume: (volume: number) => void; // Add volume setter
 }
 
 export const usePianoStore = create<PianoState>((set, get) => ({
@@ -46,6 +48,7 @@ export const usePianoStore = create<PianoState>((set, get) => ({
   currentSong: null,
   songProgress: 0,
   velocity: new Map(), // Initialize velocity map
+  volume: -5, // Default volume in dB
 
   setStartKey: (key) => {
     const maxStart = 87 - get().visibleKeys + 1;
@@ -54,7 +57,7 @@ export const usePianoStore = create<PianoState>((set, get) => ({
   },
 
   setVisibleKeys: (count) => {
-    const newCount = Math.max(1, Math.min(18, count));
+    const newCount = Math.max(1, Math.min(22, count)); // Changed from 18 to 22
     const maxStart = 87 - newCount + 1;
     const newStartKey = Math.min(get().startKey, maxStart);
     set({ visibleKeys: newCount, startKey: newStartKey });
@@ -102,6 +105,37 @@ export const usePianoStore = create<PianoState>((set, get) => ({
 
     const note = keyToNote(key);
     piano.triggerRelease(note);
+  },
+
+  setVolume: (volume) => {
+    const { piano } = get();
+    const newVolume = Math.max(-40, Math.min(0, volume)); // Limit from -40dB to 0dB
+    
+    // Convert from dB to linear gain for better volume control
+    // dB to linear: 10^(dB/20)
+    const linearVolume = newVolume <= -40 ? 0 : Math.pow(10, newVolume / 20);
+    
+    if (piano) {
+      // Set volume directly to the gain parameter
+      try {
+        // Two different ways to set volume in Tone.js - try both for compatibility
+        if (piano.volume && typeof piano.volume.value !== 'undefined') {
+          piano.volume.value = newVolume;
+        } else if (piano.volume && typeof piano.volume.setValueAtTime === 'function') {
+          piano.volume.setValueAtTime(newVolume, Tone.now());
+        } else {
+          console.log("Alternative volume method");
+          // Set the value property of the volume parameter
+          piano.volume.value = newVolume;
+        }
+        
+        console.log(`Set piano volume to ${newVolume}dB (${linearVolume} linear)`);
+      } catch (err) {
+        console.error("Failed to set volume:", err);
+      }
+    }
+    
+    set({ volume: newVolume });
   },
 
   initAudio: async () => {
@@ -154,6 +188,16 @@ export const usePianoStore = create<PianoState>((set, get) => ({
         baseUrl: "https://tonejs.github.io/audio/salamander/",
         onload: () => {
           console.log("✅ Piano samples loaded successfully");
+          
+          // Set initial volume immediately after loading
+          const initialVolume = get().volume;
+          console.log(`Setting initial volume to ${initialVolume}dB`);
+          try {
+            piano.volume.value = initialVolume;
+          } catch (err) {
+            console.error("Failed to set initial volume:", err);
+          }
+          
           set({
             isLoading: false,
             piano,
@@ -167,7 +211,6 @@ export const usePianoStore = create<PianoState>((set, get) => ({
       }).connect(reverb);
 
       console.log("Sampler created, loading samples...");
-      piano.volume.value = -5;
     } catch (error) {
       console.error("❌ Failed to initialize audio:", error);
       set({ isLoading: false, piano: null });
@@ -182,7 +225,7 @@ export const usePianoStore = create<PianoState>((set, get) => ({
 
     // Set visible keys and center range
     const rangeSize = song.range.max - song.range.min + 1;
-    const visible = Math.min(Math.max(rangeSize, 7), 18);
+    const visible = Math.min(Math.max(rangeSize, 7), 22); // Changed from 18 to 22
     get().setVisibleKeys(visible);
     const centerKey = Math.floor((song.range.min + song.range.max) / 2);
     get().setStartKey(centerKey - Math.floor(visible / 2));

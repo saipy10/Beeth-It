@@ -52,7 +52,9 @@ export default function PianoKeyboard() {
     const piano = pianoRef.current;
     if (piano) {
       piano.addEventListener("click", handleFirstInteraction, { once: true });
-      piano.addEventListener("touchstart", handleFirstInteraction, { once: true });
+      piano.addEventListener("touchstart", handleFirstInteraction, {
+        once: true,
+      });
     }
     return () => {
       if (piano) {
@@ -83,9 +85,25 @@ export default function PianoKeyboard() {
       "x",
       "c",
       "v",
+      "b",
+      "n",
+      "m",
+      ",",
     ];
-    const blackKeyShortcuts = ["w", "e", "t", "y", "u", "i", "o", "p"];
-
+    const blackKeyShortcuts = [
+      "w",
+      "e",
+      "t",
+      "y",
+      "u",
+      "i",
+      "o",
+      "p",
+      "1",
+      "2",
+      "3",
+      "4",
+    ];
     const keyMap: Record<string, number> = {};
     let whiteIndex = 0;
     let blackIndex = 0;
@@ -110,7 +128,8 @@ export default function PianoKeyboard() {
         return;
 
       const key = e.key.toLowerCase();
-      if (keyboardKeysDown.current.has(key) || keyMap[key] === undefined) return;
+      if (keyboardKeysDown.current.has(key) || keyMap[key] === undefined)
+        return;
       e.preventDefault();
       keyboardKeysDown.current.add(key);
       const noteIndex = keyMap[key];
@@ -260,7 +279,9 @@ export default function PianoKeyboard() {
     if (piano) {
       piano.style.touchAction = "none";
       piano.addEventListener("mousedown", handleMouseDown);
-      piano.addEventListener("touchstart", handleTouchStart, { passive: false });
+      piano.addEventListener("touchstart", handleTouchStart, {
+        passive: false,
+      });
       piano.addEventListener("touchmove", handleTouchMove, { passive: false });
       piano.addEventListener("touchend", handleTouchEnd, { passive: false });
       piano.addEventListener("touchcancel", handleTouchEnd, { passive: false });
@@ -363,8 +384,25 @@ export default function PianoKeyboard() {
       "X",
       "C",
       "V",
+      "B",
+      "N",
+      "M",
+      ",",
     ];
-    const blackKeyShortcuts = ["W", "E", "T", "Y", "U", "I", "O", "P"];
+    const blackKeyShortcuts = [
+      "W",
+      "E",
+      "T",
+      "Y",
+      "U",
+      "I",
+      "O",
+      "P",
+      "1",
+      "2",
+      "3",
+      "4",
+    ];
     let whiteIndex = 0;
     let blackIndex = 0;
 
@@ -404,7 +442,9 @@ export default function PianoKeyboard() {
           style={{
             background: `radial-gradient(circle at ${
               50 + Math.sin(glowIntensity * Math.PI * 2) * 15
-            }% ${50 + Math.cos(glowIntensity * Math.PI * 2) * 15}%, rgba(120, 120, 255, 0.3), transparent 70%)`,
+            }% ${
+              50 + Math.cos(glowIntensity * Math.PI * 2) * 15
+            }%, rgba(120, 120, 255, 0.3), transparent 70%)`,
             filter: "blur(40px)",
           }}
         />
@@ -495,63 +535,66 @@ export default function PianoKeyboard() {
 
         {/* Black keys */}
         <div className="absolute top-0 left-0 right-0 h-[60%]">
-          {keys.map(({ keyIndex, isBlackKey, isActive, isSuggested, noteColor }) => {
-            if (!isBlackKey) return null;
-            const whiteKeysBefore = keys.filter(
-              (k) => !k.isBlackKey && k.keyIndex < keyIndex
-            ).length;
-            const notePos = keyIndex % 12;
+          {keys.map(
+            ({ keyIndex, isBlackKey, isActive, isSuggested, noteColor }) => {
+              if (!isBlackKey) return null;
+              const whiteKeysBefore = keys.filter(
+                (k) => !k.isBlackKey && k.keyIndex < keyIndex
+              ).length;
+              const notePos = keyIndex % 12;
 
-            return (
-              <motion.div
-                key={`black-${keyIndex}`}
-                data-key-index={keyIndex}
-                className="absolute w-[8.5%] h-full rounded-lg cursor-pointer z-20 pointer-events-auto overflow-hidden backdrop-blur-md border border-black/50"
-                style={{
-                  left: `calc(${
-                    whiteKeysBefore *
-                    (100 / (keys.length - keys.filter((k) => k.isBlackKey).length))
-                  }% - 4.25%)`,
-                  background: isActive
-                    ? `linear-gradient(to bottom, ${getGlowColor(
-                        notePos,
-                        true
-                      )} 0%, rgba(0, 0, 0, 0.8) 100%)`
-                    : "linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.8) 100%)",
-                  boxShadow: isActive
-                    ? `0 0 20px ${getGlowColor(
-                        notePos,
-                        true
-                      )}, inset 0 0 10px rgba(255, 255, 255, 0.3)`
-                    : isSuggested
-                    ? "0 0 10px rgba(120, 120, 255, 0.4), inset 0 0 5px rgba(120, 120, 255, 0.2)"
-                    : "0 4px 6px rgba(0, 0, 0, 0.3)",
-                }}
-                animate={{
-                  y: isActive ? 4 : 0,
-                  transition: { type: "spring", stiffness: 400, damping: 25 },
-                }}
-              >
-                {/* Subtle color gradient overlay */}
-                <div
-                  className={`absolute inset-0 bg-gradient-to-b ${noteColor} opacity-${
-                    isActive ? 60 : 30
-                  } mix-blend-overlay`}
-                />
+              return (
+                <motion.div
+                  key={`black-${keyIndex}`}
+                  data-key-index={keyIndex}
+                  className="absolute w-[6%] h-full rounded-lg cursor-pointer z-20 pointer-events-auto overflow-hidden backdrop-blur-md border border-black/50"
+                  style={{
+                    left: `calc(${
+                      whiteKeysBefore *
+                      (100 /
+                        (keys.length - keys.filter((k) => k.isBlackKey).length))
+                    }% - 3%)`,
+                    background: isActive
+                      ? `linear-gradient(to bottom, ${getGlowColor(
+                          notePos,
+                          true
+                        )} 0%, rgba(0, 0, 0, 0.8) 100%)`
+                      : "linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.8) 100%)",
+                    boxShadow: isActive
+                      ? `0 0 20px ${getGlowColor(
+                          notePos,
+                          true
+                        )}, inset 0 0 10px rgba(255, 255, 255, 0.3)`
+                      : isSuggested
+                      ? "0 0 10px rgba(120, 120, 255, 0.4), inset 0 0 5px rgba(120, 120, 255, 0.2)"
+                      : "0 4px 6px rgba(0, 0, 0, 0.3)",
+                  }}
+                  animate={{
+                    y: isActive ? 4 : 0,
+                    transition: { type: "spring", stiffness: 400, damping: 25 },
+                  }}
+                >
+                  {/* Subtle color gradient overlay */}
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-b ${noteColor} opacity-${
+                      isActive ? 60 : 30
+                    } mix-blend-overlay`}
+                  />
 
-                {/* Glass reflection effect */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent opacity-30" />
+                  {/* Glass reflection effect */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent opacity-30" />
 
-                {/* Edge highlight */}
-                <div className="absolute inset-x-0 top-0 h-px bg-white/20" />
+                  {/* Edge highlight */}
+                  <div className="absolute inset-x-0 top-0 h-px bg-white/20" />
 
-                {/* Keyboard shortcut */}
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/80">
-                  {getKeyboardShortcut(keyIndex)}
-                </div>
-              </motion.div>
-            );
-          })}
+                  {/* Keyboard shortcut */}
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 text-[10px] font-mono text-white/80">
+                    {getKeyboardShortcut(keyIndex)}
+                  </div>
+                </motion.div>
+              );
+            }
+          )}
         </div>
 
         {/* Base glow reflection */}
