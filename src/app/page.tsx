@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import dynamic from "next/dynamic";
-import { MessageSquare } from "lucide-react";
 import { usePianoStore } from "@/store/piano-store";
 import PianoKeyboard from "@/components/piano-keyboard";
 // import MiniMap from "@/components/mini-map";
