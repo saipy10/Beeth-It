@@ -35,55 +35,86 @@ export default function Home() {
     initAudio();
   }, [initAudio]);
 
+  
   return (
-    <main className="relative flex flex-col h-screen w-full overflow-hidden bg-black text-white">
-      <NoteTrail />
-      {/* Space Background */}
-      <SpaceBackground />
-      {/* Feedback Button */}
-      <FeedbackButton/>
-      {/* Content Container */}
-      <div className="relative z-10 flex flex-col h-full w-full">
-        {/* Title and Description */}
-        <motion.div
-          className="p-6 text-center"
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-        >
-          <h1 className="text-4xl font-bold text-purple-300 mb-2 bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent">
-            Beeth-It
-          </h1>
-          <p className="text-purple-200/80 max-w-md mx-auto text-sm">
-            Play the piano among the stars. Use your mouse or keyboard to explore the cosmos of sound.
-          </p>
-        </motion.div>
+    <>
+      <style jsx global>{`
+  /* Mobile portrait: rotate content */
+  @media (max-width: 768px) and (orientation: portrait) {
+    .rotate-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100vh;
+      height: 100vw;
+      transform: translate(-50%, -50%) rotate(90deg);
+      transform-origin: center center;
+    }
+  }
 
-        {/* Piano Interface */}
-        <div className="flex-1 flex flex-col relative">
-          {/* Mini Map - Floating above piano */}
+  /* Landscape or desktop */
+  @media (max-width: 768px) and (orientation: landscape) {
+    .rotate-container {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform: none;
+    }
+  }
+`}</style>
+      
+      <main className="piano-main relative h-screen w-screen overflow-hidden bg-black text-white">
+    <div className="rotate-container relative h-full w-full">
+
+        <NoteTrail />
+        {/* Space Background */}
+        <SpaceBackground />
+        {/* Feedback Button */}
+        <FeedbackButton/>
+        {/* Content Container */}
+        <div className="relative z-10 flex flex-col h-full w-full">
+          {/* Title and Description */}
           <motion.div
-            className="absolute top-4 left-1/2 transform -translate-x-1/2 w-1/2 z-20"
-            initial={{ y: -10, opacity: 0 }}
+            className="p-6 text-center"
+            initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            {/* <MiniMap /> */}
+            <h1 className="text-4xl font-bold text-purple-300 mb-2 bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent">
+              Beeth-It
+            </h1>
+            <p className="text-purple-200/80 max-w-md mx-auto text-sm">
+              Play the piano among the stars. Use your mouse or keyboard to explore the cosmos of sound.
+            </p>
           </motion.div>
 
-          {/* Key Suggestions */}
-          <div className="h-16 px-4 mt-12">
-            {/* <KeySuggestions /> */}
-          </div>
+          {/* Piano Interface */}
+          <div className="flex-1 flex flex-col relative">
+            {/* Mini Map - Floating above piano */}
+            <motion.div
+              className="absolute top-4 left-1/2 transform -translate-x-1/2 w-1/2 z-20"
+              initial={{ y: -10, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+            >
+              {/* <MiniMap /> */}
+            </motion.div>
 
-          {/* Piano Keyboard */}
-          <div className="flex-1 relative">
-            <PianoKeyboard />
-            {/* <FingerAnimations /> */}
+            {/* Key Suggestions */}
+            <div className="h-16 px-4 mt-12">
+              {/* <KeySuggestions /> */}
+            </div>
+
+            {/* Piano Keyboard */}
+            <div className="flex-1 relative">
+              <PianoKeyboard />
+              {/* <FingerAnimations /> */}
+            </div>
           </div>
+          {/* <DemoPlayer/> */}
         </div>
-        {/* <DemoPlayer/> */}
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   );
 }
